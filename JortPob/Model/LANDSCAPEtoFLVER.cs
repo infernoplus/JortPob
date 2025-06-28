@@ -94,7 +94,7 @@ namespace JortPob.Model
                     flverVertex.Tangents.Add(new Vector4(1, 0, 0, 1));  // @TODO: WRONG!
 
                     //FLVER.VertexColor color = new(vertex.color.w, vertex.color.x, vertex.color.y, vertex.color.z); // Doesn't seem to do anything @TODO: replace with mult overlay
-                    FLVER.VertexColor color = new(255, 255, 255, 255); // Generically set value, elden ring vertex color support is shit garbage. we use a texture to handle this
+                    FLVER.VertexColor color = new(255,255,255,255); // Generically set value, elden ring vertex color support is shit garbage. we use a texture to handle this
                     flverVertex.Colors.Add(color);
 
                     flverMesh.Vertices.Add(flverVertex);
@@ -113,6 +113,12 @@ namespace JortPob.Model
             faceset.CullBackfaces = true;
             faceset.Unk06 = 1;
             mesh.FaceSets.Add(faceset);
+
+            /* Raise overlay mesh by a tiny amount to reduce zfighting */
+            foreach(FLVER.Vertex vert in mesh.Vertices)
+            {
+                vert.Position.Y += 0.01f;
+            }
 
             for(int k=0;k<flver.Meshes.Count-1;k++)  // @TODO: temp! generate proper lod indices later please
             {

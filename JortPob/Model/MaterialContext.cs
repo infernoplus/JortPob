@@ -185,8 +185,8 @@ namespace JortPob.Model
             { "static[a]alpha", null },                     // same but alpha tested
             { "static[a]transparent", null },               // same but transparent
             { "static[a]multi[2]", "m10_00_027" },          // blendy multimaterial for terrain
-            { "static[a]multi[3]", "m10_00_022" },          // VERY blendy multimaterial for terrain
-            { "static[a]overlay", "m10_00_003" },      // used for terrain vertex color masking
+            { "static[a]multi[3]", "m10_00_022" },          // VERY blendy multimaterial for terrain m10_00_022 best so far
+            { "static[a]overlay", "m10_00_311" },      // used for terrain vertex color masking m10_00_003 best so far
             { "static[x]water", "Field_sea_05"}          // water shader, does not take any input textures
         };
 
@@ -353,25 +353,101 @@ namespace JortPob.Model
             }
             else
             {
+                var test = MATBIN.Read(Utility.ResourcePath($"matbins\\m10_00_003.matbin"));
                 matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
-                //matbin.Params[1].Value = true;  // decal mode (?) - not functional with the nolight material i guess'
+                matbin.Params[1].Value = true;  // decal mode (?) - not functional with the nolight material i guess'
                 matbin.Params[4].Value = true;  // no shadowcast
-                matbin.Params[8].Value = true; // disable decals on this material (???)
+                matbin.Params[8].Value = false; // disable decals on this material (???)
                 matbin.Params[9].Value = true;  // no depth write
-                //matbin.Params[10].Value = true;  // SSR ??
+                matbin.Params[10].Value = false;  // SSR ??
                 matbin.Params[12].Value = 3;    // Multiply/Overlay composite mode. Not sure which hard to tell difference.
-                matbin.Params[15].Value = false; // forward rendering ?? def true
-                matbin.Params[16].Value = false; // emmissvie?? def true
-                matbin.Params[17].Value = false; // forceforward?? def true
+                matbin.Params[13].Value = new int[] {1,0 }; //alpha ref
+
+                MATBIN.Param invalidLight = new MATBIN.Param();
+                invalidLight.Key = 2539390870;
+                invalidLight.Name = "GXFT_InvalidLighting";
+                invalidLight.Type = MATBIN.ParamType.Bool;
+                invalidLight.Value = true;
+                matbin.Params.Add(invalidLight);
+
+                MATBIN.Param ssssw = new MATBIN.Param();
+                ssssw.Key = 672269248;
+                ssssw.Name = "g_SSSWidth";
+                ssssw.Type = MATBIN.ParamType.Float;
+                ssssw.Value = 0f;
+                matbin.Params.Add(ssssw);
+
+                MATBIN.Param ssss = new MATBIN.Param();
+                ssss.Key = 1144521999;
+                ssss.Name = "g_SSSStrength";
+                ssss.Type = MATBIN.ParamType.Float3;
+                ssss.Value = new float[] {0f, 0f, 0f};
+                matbin.Params.Add(ssss);
+
+                MATBIN.Param ssssenable = new MATBIN.Param();
+                ssssenable.Key = 3802007824;
+                ssssenable.Name = "g_SSSStrength_UseCAParam";
+                ssssenable.Type = MATBIN.ParamType.Bool;
+                ssssenable.Value = false;
+                matbin.Params.Add(ssssenable);
+
+                MATBIN.Param forward = new MATBIN.Param();
+                forward.Key = 2948204600;
+                forward.Name = "g_GX_ForwardRendering";
+                forward.Type = MATBIN.ParamType.Bool;
+                forward.Value = true;
+                matbin.Params.Add(forward);
+
+                MATBIN.Param force = new MATBIN.Param();
+                force.Key = 1810630237;
+                force.Name = "GXFT_ForceForward";
+                force.Type = MATBIN.ParamType.Bool;
+                force.Value = true;
+                matbin.Params.Add(force);
+
+                MATBIN.Param depth = new MATBIN.Param();
+                depth.Key = 839124027;
+                depth.Name = "g_DepthBias";
+                depth.Type = MATBIN.ParamType.Int;
+                depth.Value = 64;
+                matbin.Params.Add(depth);
+
+
+                MATBIN.Param emissive = new MATBIN.Param();
+                emissive.Key = 1060242654;
+                emissive.Name = "GXFT_Emissive";
+                emissive.Type = MATBIN.ParamType.Bool;
+                emissive.Value = true;
+                matbin.Params.Add(emissive);
+
+                /*MATBIN.Param meshDecal = new();
+                meshDecal.Key = 1463682445;
+                meshDecal.Name = "g_GX_bMeshDecal";
+                meshDecal.Type = MATBIN.ParamType.Bool;
+                meshDecal.Value = true;
+                matbin.Params.Add(meshDecal);*/
+                //matbin.Params[15].Value = false; // forward rendering ?? def true
+                //matbin.Params[16].Value = false; // emmissvie?? def true
+                //matbin.Params[17].Value = false; // forceforward?? def true
                 matbin.Samplers[0].Path = diffuseTexture;
                 matbin.Samplers[0].Unk14 = new Vector2(1, 1);
+                matbin.Samplers[1].Path = "tx_flat";
+                matbin.Samplers[1].Unk14 = new Vector2(1, 1);
                 matbin.SourcePath = $"{matbinName}.matxml";
+
+                /*matbin.Params[1].Value = true;
+                matbin.Params[2].Value = true;
+                matbin.Params[6].Value = 3;
+                matbin.Params[9].Value = 1f;
+                matbin.Samplers[0].Path = diffuseTexture;
+                matbin.Samplers[0].Unk14 = new Vector2(1, 1);
+                matbin.SourcePath = $"{matbinName}.matxml";*/
                 genMATBINs.TryAdd(matbinkey, matbin);
             }
 
-            FLVER2.BufferLayout layout = GetLayout($"{matbinTemplate}.matxml", true);
-            FLVER2.GXList gx = GetGXList($"{matbinTemplate}.matxml");
-            FLVER2.Material material = GetMaterial($"{matbinTemplate}.matxml", index);
+            FLVER2.BufferLayout layout = GetLayout($"m10_00_003.matxml", true);
+            FLVER2.GXList gx = GetGXList($"m10_00_003.matxml");
+            FLVER2.Material material = GetMaterial($"m10_00_003.matxml", index);
             material.MTD = matbin.SourcePath;
             material.Name = $"{matbinName}";
 

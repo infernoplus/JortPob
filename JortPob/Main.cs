@@ -28,6 +28,7 @@ namespace JortPob
             ESM esm = new ESM($"{Const.MORROWIND_PATH}\\Data Files\\Morrowind.json");      // Morrowind ESM parse and partial serialization
             Cache cache = Cache.Load(esm);                                                  // Load existing cache (FAST!) or generate a new one (SLOW!)
             Layout layout = new(cache, esm);                                                 // Subdivides all content data from ESM into a more elden ring friendly format
+            Test.RegenerateLandscapes(esm, layout, cache);
             Paramanager param = new();                                                        // Class for managing PARAM files
 
             /* Generate exterior msbs from layout */

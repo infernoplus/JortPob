@@ -74,6 +74,9 @@
     <None Update="Resources\matbins\AEG006_030_ID001.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\matbins\AEG110_243_ID014.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\matbins\allmaterial.matbinbnd.dcx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -95,7 +98,16 @@
     <None Update="Resources\matbins\m10_00_033.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\matbins\m10_00_113.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\matbins\m10_00_117.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\m10_00_311.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\m10_00_878.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\matbins\m10_00_900.matbin">
@@ -104,10 +116,28 @@
     <None Update="Resources\matbins\m11_00_302.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\matbins\m11_00_900.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\m20_00_801.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\matbins\m21_00_905.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\matbins\m38_sky_al_NoLight.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\matbins\MaterialInfo.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\M[A]_al_NoLight.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\s99912_S[A]_add.matbin">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\matbins\WorldTree_019.matbin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\misc\havok.mtl">
