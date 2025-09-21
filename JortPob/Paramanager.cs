@@ -8,6 +8,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using WitchyFormats;
+using static SoulsAssetPipeline.Audio.Wwise.WwiseBlock;
 
 namespace JortPob
 {
@@ -86,6 +87,8 @@ namespace JortPob
         public short terrainDrawParamID;
         private Dictionary<int, int> lodPartDrawParamIDs; // first int is the index of the array from Const.ASSET_LOD_VALUES, second int is the param row id
 
+        public readonly Dictionary<int, int> talkRowData;
+
         public Paramanager()
         {
             SoulsFormats.BND4 paramBnd = SoulsFormats.SFUtil.DecryptERRegulation(Utility.ResourcePath(@"misc\regulation.bin"));
@@ -126,6 +129,8 @@ namespace JortPob
             }
 
             GC.Collect(); // maybe fixes a bug with fsparam. 80% sure
+
+            talkRowData = new();
         }
 
         public void AddRow(FsParam param, FsParam.Row row)
@@ -150,6 +155,17 @@ namespace JortPob
             Lort.NewTask($"Binding PARAMs", param.Count());
             Lort.Log($"Total TalkParam rows: {param[Paramanager.ParamType.TalkParam].Rows.Count()} out of a max of {ushort.MaxValue}", Lort.Type.Debug);
 
+            /* Create talkrow binary for nords thingy */
+            string talkRowBinaryPath = $"{Const.OUTPUT_PATH}TalkRowBinary.bin";
+            List<byte> rawData = new();
+            foreach (KeyValuePair<int, int> kvp in talkRowData)
+            {
+                rawData.AddRange(BitConverter.GetBytes(kvp.Key));
+                rawData.AddRange(BitConverter.GetBytes(kvp.Value));
+            }
+            System.IO.File.WriteAllBytes(talkRowBinaryPath, rawData.ToArray());
+
+            /* Bnd and write params */
             BND4 bnd = new();
             bnd.Compression = SoulsFormats.DCX.Type.DCX_ZSTD;
             bnd.Version = "11601000";
@@ -476,6 +492,24 @@ namespace JortPob
 
         public void GenerateTalkParam(TextManager textManager, List<NpcManager.TopicData> topicData)
         {
+            foreach (NpcManager.TopicData topic in topicData)
+            {
+                foreach (NpcManager.TopicData.TalkData talk in topic.talks)
+                {
+                    for (int i = 0; i < talk.talkRows.Count(); i++)
+                    {
+                        int id = talk.talkRows[i];
+                        string text = talk.splitText[i];
+
+                        // If exists skip, duplicates happen during gen of these params beacuse a single talkparam can be used by any number of npcs. Hundreds in some cases.
+                        if (talkRowData.ContainsKey(id)) { continue; }
+                        textManager.AddTalk(id * 10, text);
+                        talkRowData.Add(id, id * 10);
+                    }
+                }
+            }
+
+            /*
             FsParam talkParam = param[ParamType.TalkParam];
             FsParam.Row templateTalkRow = talkParam[1400000]; // 1400000 is a line from opening cutscene
 
@@ -510,7 +544,7 @@ namespace JortPob
                         AddRow(talkParam, row);
                     }
                 }
-            }
+            }*/
         }
 
         public void GenerateNpcParam(TextManager textManager, int id, NpcContent npc)
