@@ -1,3 +1,12 @@
 {
-
+  "gold_001": {
+    "type": "Goods",
+    "row": 2900,
+    "text": {
+      "name": "Coin pouch [1]",
+      "summary": "Summary of item.",
+      "description": "Description of item.",
+      "effect": "Effect of item."
+    }
+  }
 }

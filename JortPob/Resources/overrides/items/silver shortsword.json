@@ -1,5 +1,5 @@
 {
-  "comment": "Silver shortsword remapped to black knife. Testing origin weapon auto generation!",
+  "comment": "Silver shortsword as a copy of black knife. Testing origin weapon auto generation!",
   "type": "Weapon",
   "row": 1010000,
   "useIcon": false,

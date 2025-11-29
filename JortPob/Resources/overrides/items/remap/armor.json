@@ -2,7 +2,12 @@
   "steel_helm": {
     "type": "Armor",
     "row": 1500000,
-    "comment": "Knight Armor Helm"
+    "comment": "Knight Armor Helm",
+    "text": {
+      "name": "Steel Helmet",
+      "summary": "Summary of item.",
+      "description": "Description of item."
+    }
   },
   "steel_cuirass": {
     "type": "Armor",
@@ -18,5 +23,10 @@
     "type": "Armor",
     "row": 1500300,
     "comment": "Knight Armor Legs"
+  },
+  "common_pants_01": {
+    "type": "Armor",
+    "row": 160300,
+    "comment": "Common pants to cloth trousers."
   }
 }

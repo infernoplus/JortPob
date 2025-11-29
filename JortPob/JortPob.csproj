@@ -5236,6 +5236,9 @@
     <None Update="Resources\overrides\items\chargen dagger.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="Resources\overrides\items\nuccius_ring.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Resources\overrides\items_to_skip.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
@@ -5264,6 +5267,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\overrides\speffs\test_speff.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resources\overrides\speffs\test_speff_2.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="Resources\overrides\static_collision.json">

@@ -2,13 +2,15 @@
   "comment": "Chargen dagger remap to a regular dagger. Test!",
   "type": "Weapon",
   "row": 1000000,
-  "useIcon": false,
+  "useIcon": true,
   "text": {
     "name": "Daggy",
     "description": "Woah! Daggerliciuos!",
     "enchant": [ "Daggery!" ]
   },
   "data": {
-    "correctStrength": 125
+    "correctStrength": 125,
+    "wepmotionOneHandId": 2,
+    "wepmotionBothHandId": 12
   }
 }

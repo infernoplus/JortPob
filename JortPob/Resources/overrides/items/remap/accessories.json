@@ -2,6 +2,21 @@
   "nuccius_ring": {
     "type": "Accessory",
     "row": 1020,
-    "comment": "Vondius's cursed ring to Viridian Amber Medalion"
+    "comment": "Vondius's cursed ring to Viridian Amber Medalion",
+    "text": {
+      "name": "Vondius's Ring",
+      "summary": "Summary of item.",
+      "description": "Description of item."
+    }
+  },
+  "ring_keley": {
+    "type": "Accessory",
+    "row": 1000,
+    "comment": "Keley's Ring to Crimson Amber Medallion",
+    "text": {
+      "name": "Engraved Ring of Healing",
+      "summary": "Summary of item.",
+      "description": "Description of item."
+    }
   }
 }

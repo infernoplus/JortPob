@@ -221,28 +221,28 @@ namespace JortPob
                                 break;
                             case Type.Armor:
                                 ItemInfo armor = new(def.id, Type.Armor, nextArmorId, value, scriptItem);
-                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamProtector, def.id, def.row, nextWeaponId, def.data);
+                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamProtector, def.id, def.row, nextArmorId, def.data);
                                 textManager.AddArmor(armor.row, def.text.name, def.text.summary, def.text.description);
                                 if (def.useIcon) {
-                                    SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamProtector, nextWeaponId, "iconIdM", iconManager.GetIconByRecord(id).id);
-                                    SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamProtector, nextWeaponId, "iconIdF", iconManager.GetIconByRecord(id).id);
+                                    SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamProtector, nextArmorId, "iconIdM", iconManager.GetIconByRecord(id).id);
+                                    SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamProtector, nextArmorId, "iconIdF", iconManager.GetIconByRecord(id).id);
                                 }
                                 nextArmorId += 10000;
                                 items.Add(armor);
                                 break;
                             case Type.Accessory:
                                 ItemInfo accessory = new(def.id, Type.Accessory, nextAccessoryId, value, scriptItem);
-                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamAccessory, def.id, def.row, nextWeaponId, def.data);
+                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamAccessory, def.id, def.row, nextAccessoryId, def.data);
                                 textManager.AddAccessory(accessory.row, def.text.name, def.text.summary, def.text.description);
-                                if (def.useIcon) { SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamAccessory, nextWeaponId, "iconId", iconManager.GetIconByRecord(id).id); }
+                                if (def.useIcon) { SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamAccessory, nextAccessoryId, "iconId", iconManager.GetIconByRecord(id).id); }
                                 nextAccessoryId += 10;
                                 items.Add(accessory);
                                 break;
                             case Type.Goods:
                                 ItemInfo goods = new(def.id, Type.Goods, nextGoodsId, value, scriptItem);
-                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamGoods, def.id, def.row, nextWeaponId, def.data);
+                                SillyJsonUtils.CopyRowAndModify(paramanager, speffManager, Paramanager.ParamType.EquipParamGoods, def.id, def.row, nextGoodsId, def.data);
                                 textManager.AddGoods(goods.row, def.text.name, def.text.summary, def.text.description, def.text.effect);
-                                if (def.useIcon) { SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamGoods, nextWeaponId, "iconId", iconManager.GetIconByRecord(id).id); }
+                                if (def.useIcon) { SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamGoods, nextGoodsId, "iconId", iconManager.GetIconByRecord(id).id); }
                                 nextGoodsId += 10;
                                 items.Add(goods);
                                 break;

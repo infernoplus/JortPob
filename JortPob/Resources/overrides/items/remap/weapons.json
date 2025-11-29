@@ -2,8 +2,8 @@
   "iron shardaxe": {
     "type": "CustomWeapon",
     "row": 14000000,
-    "infusion": "Lightning",
-    "skill": 21700,
+    "infusion": "Cold",
+    "skill": 50100,
     "upgrade": 2,
     "comment": "Remapping the iron shardaxe to a regular battle axe with +2 lightning infusion and the lightning slash skill."
   },
@@ -15,6 +15,10 @@
   "miner's pick": {
     "type": "Weapon",
     "row": 12140000,
+    "text": {
+      "name": "Miner's 'Pickaxe",
+      "description": "A sturdy pickaxe used for mining."
+    },
     "comment": "Pickaxe"
   },
   "long bow": {
