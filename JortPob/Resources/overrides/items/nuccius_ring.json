@@ -1,0 +1,14 @@
+{
+  "type": "Accessory",
+  "comment": "Custom vondius ring for testing.",
+  "row": 1000,
+  "useIcon": true,
+  "text": {
+    "name": "Vondiu's Cursed Ring",
+    "description": "Wow so cursed.",
+    "enchant": [ "Does stuff!" ]
+  },
+  "data": {
+    "refId": "test_speff_2"
+  }
+}

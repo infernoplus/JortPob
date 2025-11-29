@@ -1,0 +1,10 @@
+{
+  "comment": "Just a test speff to make sure this code is working v2",
+  "row": 310000,
+  "icon": "FortifyAttackBonus",
+  "data": {
+    "motionInterval": 1,
+    "changeHpPoint": 5,
+    "addDexterityStatus": 25
+  }
+}
