@@ -90,11 +90,4 @@
     </Reference>
   </ItemGroup>
 
-  <Target Name="CopyESDLangDocs" AfterTargets="AfterBuild">
-    <ItemGroup Label="ESDLangDocs">
-      <ESDLangDocsSourceFiles Include="..\JortPob\Resources\tools\ESDTool\dist\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(ESDLangDocsSourceFiles)" DestinationFolder="$(OutDir)\dist" SkipUnchangedFiles="true" ContinueOnError="false" />
-  </Target>
-
 </Project>

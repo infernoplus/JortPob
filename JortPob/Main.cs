@@ -1,4 +1,5 @@
-﻿using IronPython.Hosting;
+﻿using HKLib.hk2018.hkaiCollisionAvoidance;
+using IronPython.Hosting;
 using JortPob.Common;
 using JortPob.Worker;
 using Microsoft.Scripting.Hosting;
@@ -681,75 +682,13 @@ namespace JortPob
                     /* TEST Creatures */ // make some goats where enemies would spawn just as a test
                     foreach (CreatureContent creature in chunk.creatures)
                     {
-                        MSBE.Part.Enemy enemy = MakePart.Creature();
-                        enemy.Position = creature.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
-                        enemy.Rotation = creature.rotation;
+                        var pool = GenerateInteriorMSB(group, scriptManager, cache, esm, param, character);
+                        Lort.TaskIterate();
+                        return pool;
+                    })
+                    .Where(pool => pool != null);
 
-                        enemy.Unk1.DisplayGroups[0] = 0;
-                        enemy.CollisionPartName = rootCollision.Name;
-                        enemy.EntityID = creature.entity;
-
-                        msb.Parts.Enemies.Add(enemy);
-                    }
-
-                    /* Handle area name */
-                    int paramId = int.Parse($"60{group.map:D2}{group.area:D2}{nextMPR:D2}");
-
-
-                    MSBE.Region.MapPoint mpr = new();
-                    mpr.Name = $"{chunk.cell.name} placename";
-                    mpr.Shape = new MSB.Shape.Box(chunk.bounds.X, chunk.bounds.Z, chunk.bounds.Y);
-                    mpr.Position = chunk.root + Const.TEST_OFFSET1 + Const.TEST_OFFSET2 - new Vector3(0f, chunk.bounds.Y / 2f, 0f);
-                    mpr.Rotation = Vector3.Zero;
-                    mpr.RegionID = nextMPR++;
-                    mpr.MapStudioLayer = 4294967295;
-                    mpr.WorldMapPointParamID = param.GenerateWorldMapPoint(group, chunk.cell, chunk.root, paramId);
-
-                    mpr.MapID = -1;
-                    mpr.UnkE08 = 255;
-                    mpr.UnkS04 = 0;
-                    mpr.UnkS0C = -1;
-                    mpr.UnkT04 = -1;
-                    mpr.UnkT08 = -1;
-                    mpr.UnkT0C = -1;
-                    mpr.UnkT10 = -1;
-                    mpr.UnkT14 = -1;
-                    mpr.UnkT18 = -1;
-
-                    msb.Regions.MapPoints.Add(mpr);
-                }
-
-                /* EnvMap & REM for interior */
-                // @TODO: make this per chunk so we can setupd different rems for different interiors
-                {
-                    /* Create envmap texture file */
-                    int envId = 200;
-                    int size = 4096, crossfade = 8;
-                    EnvManager.CreateEnvMaps(group, envId);
-
-                    /* Create an envbox */
-                    MSBE.Region.EnvironmentMapEffectBox envBox = MakePart.EnvBox();
-                    envBox.Name = $"Env_Box{envId.ToString("D3")}";
-                    envBox.Shape = new MSB.Shape.Box(size + crossfade, size + crossfade, size + crossfade);
-                    envBox.Position = new Vector3(0f, size * -0.5f, 0f) + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
-                    envBox.TransitionDist = crossfade / 2f;
-                    msb.Regions.EnvironmentMapEffectBoxes.Add(envBox);
-
-                    MSBE.Region.EnvironmentMapPoint envPoint = MakePart.EnvPoint();
-                    envPoint.Name = $"Env_Point{envId.ToString("D3")}";
-                    envPoint.Position = new Vector3(0f, size * -0.5f, 0f) + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
-                    envPoint.UnkMapID = new byte[] { (byte)group.map, (byte)group.area, (byte)group.unk, (byte)group.block };
-                    msb.Regions.EnvironmentMapPoints.Add(envPoint);
-                }
-
-
-
-                /* Auto resource */
-                AutoResource.Generate(group.map, group.area, group.unk, group.block, msb);
-
-                /* Done */
-                msbs.Add(pool);
-                Lort.TaskIterate(); // Progress bar update
+                msbs.AddRange(interiorPools);
             }
 
             WarpZone.Generate(layout, scriptManager, param);
@@ -819,6 +758,238 @@ namespace JortPob
             Lort.Log("Done!", Lort.Type.Main);
             Lort.NewTask("Done!", 1);
             Lort.TaskIterate();
+        }
+
+        private static ResourcePool GenerateInteriorMSB(InteriorGroup group, ScriptManager scriptManager, Cache cache, ESM esm, Paramanager paramanager, NpcManager npcManager)
+        {
+            // Skip empty groups.
+            if (group.IsEmpty()) { return null; }
+
+            /* Misc Indices */
+            int nextC = 0, nextMPR = 0;
+
+            /* Generate msb from group */
+            MSBE msb = new();
+            LightManager lightManager = new(group.map, group.area, group.unk, group.block);
+            Script script = scriptManager.GetScript(group);
+            ResourcePool pool = new(group, msb, lightManager, script);
+            msb.Compression = SoulsFormats.DCX.Type.DCX_KRAK;
+
+            /* Handle chunks */
+            for (int i = 0; i < group.chunks.Count(); i++)
+            {
+                InteriorGroup.Chunk chunk = group.chunks[i];
+
+                /* Interior MSB drawgroup */
+                uint chunkDrawGroup = (uint)0 | ((uint)1 << i);
+
+                /* Interior MSB chunk collision root */
+                string collisionIndex = $"{group.area.ToString("D2")}{group.unk.ToString("D2")}{nextC++.ToString("D2")}";
+                MSBE.Part.Collision rootCollision = MakePart.Collision();
+                rootCollision.Name = $"h{collisionIndex}_0000";
+                rootCollision.ModelName = $"h{collisionIndex}";
+                rootCollision.Position = chunk.root + Const.TEST_OFFSET1 + Const.TEST_OFFSET2 - new Vector3(0f, chunk.bounds.Z, 0f);
+                rootCollision.Unk1.DisplayGroups[0] = 0;
+                rootCollision.Unk1.DisplayGroups[1] = chunkDrawGroup;
+                rootCollision.Unk1.CollisionMask[0] = 0;
+                rootCollision.Unk1.CollisionMask[1] = chunkDrawGroup;
+                msb.Parts.Collisions.Add(rootCollision);
+                pool.collisionIndices.Add(new Tuple<string, CollisionInfo>(collisionIndex, cache.defaultCollision));
+
+                /* Interior MSB shadow box */
+                ModelInfo shadowBoxModelInfo = cache.GetModel("interiorshadowbox");
+                MSBE.Part.Asset shadowBoxAsset = MakePart.Asset(shadowBoxModelInfo);
+                shadowBoxAsset.Position = chunk.root + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                shadowBoxAsset.Rotation = Vector3.Zero;
+                shadowBoxAsset.Scale = chunk.bounds;
+                shadowBoxAsset.Unk1.DisplayGroups[0] = 0;
+                shadowBoxAsset.UnkPartNames[1] = rootCollision.Name;
+                shadowBoxAsset.UnkPartNames[3] = rootCollision.Name;
+                shadowBoxAsset.UnkPartNames[5] = rootCollision.Name;
+                msb.Parts.Assets.Add(shadowBoxAsset);
+
+                /* Add assets */
+                foreach (AssetContent content in chunk.assets)
+                {
+                    if (Override.CheckDoNotPlace(content.mesh.ToLower())) { continue; } // skip any meshes listed in the do_not_place override json
+
+                    /* Grab ModelInfo */
+                    ModelInfo modelInfo = cache.GetModel(content.mesh, content.scale);
+
+                    /* Make part */
+                    MSBE.Part.Asset asset = MakePart.Asset(modelInfo);
+                    asset.Position = content.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    asset.Rotation = content.rotation;
+                    asset.Scale = new Vector3(modelInfo.UseScale() ? (content.scale * 0.01f) : 1f);
+
+                    if (content.papyrus != null)
+                    {
+                        content.entity = script.CreateEntity(EntityType.Asset, content.id);
+                        asset.EntityID = content.entity;
+                        Papyrus papyrusScript = esm.GetPapyrus(content.papyrus);
+                        if (papyrusScript != null) { PapyrusEMEVD.Compile(scriptManager, paramanager, script, papyrusScript, content); } // this != null check only exists because bugs. @TODO: remove when we get 100% papyrus support
+                    }
+
+                    asset.Unk1.DisplayGroups[0] = 0;
+                    asset.UnkPartNames[1] = rootCollision.Name;
+                    asset.UnkPartNames[3] = rootCollision.Name;
+                    asset.UnkPartNames[5] = rootCollision.Name;
+
+                    msb.Parts.Assets.Add(asset);
+                }
+
+                /* Add doors */
+                foreach (DoorContent content in chunk.doors)
+                {
+                    /* Grab ModelInfo */
+                    ModelInfo modelInfo = cache.GetModel(content.mesh, content.scale);
+
+                    /* Make part */
+                    MSBE.Part.Asset asset = MakePart.Asset(modelInfo);
+                    asset.Position = content.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    asset.Rotation = content.rotation;
+                    asset.Scale = new Vector3(modelInfo.UseScale() ? (content.scale * 0.01f) : 1f);
+                    asset.EntityID = content.entity;
+
+                    asset.Unk1.DisplayGroups[0] = 0;
+                    asset.UnkPartNames[1] = rootCollision.Name;
+                    asset.UnkPartNames[3] = rootCollision.Name;
+                    asset.UnkPartNames[5] = rootCollision.Name;
+
+                    if (content.warp != null) { script.RegisterLoadDoor(content); } // if the door is a load door we need to register scripts for it
+
+                    msb.Parts.Assets.Add(asset);
+                }
+
+                /* Add warp destinations for load doors */
+                foreach (Layout.WarpDestination warp in chunk.warps)
+                {
+                    MSBE.Part.Player player = MakePart.Player();
+                    player.Position = warp.position + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    player.Rotation = warp.rotation;
+                    player.EntityID = warp.id;
+                    msb.Parts.Players.Add(player);
+                }
+
+                /* Add emitters */
+                foreach (EmitterContent content in chunk.emitters)
+                {
+                    /* Grab ModelInfo */
+                    EmitterInfo emitterInfo = cache.GetEmitter(content.id);
+
+                    /* Make part */
+                    MSBE.Part.Asset asset = MakePart.Asset(emitterInfo);
+                    asset.Position = content.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    asset.Rotation = content.rotation;
+                    asset.Scale = new Vector3(content.scale * 0.01f);
+
+                    asset.Unk1.DisplayGroups[0] = 0;
+                    asset.UnkPartNames[1] = rootCollision.Name;
+                    asset.UnkPartNames[3] = rootCollision.Name;
+                    asset.UnkPartNames[5] = rootCollision.Name;
+
+                    msb.Parts.Assets.Add(asset);
+                }
+
+                /* Add lights */
+                foreach (LightContent light in chunk.lights)
+                {
+                    lightManager.CreateLight(light);
+                }
+
+                /* Create humanoid NPCs (c0000) */
+                foreach (NpcContent npc in chunk.npcs)
+                {
+                    MSBE.Part.Enemy enemy = MakePart.Npc();
+                    enemy.Position = npc.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    enemy.Rotation = npc.rotation;
+
+                    // Doing this BEFORE talkesd so that all nesscary local vars are created beforehand!
+                    if (npc.papyrus != null)
+                    {
+                        Papyrus papyrusScript = esm.GetPapyrus(npc.papyrus);
+                        if (papyrusScript != null) { PapyrusEMEVD.Compile(scriptManager, paramanager, script, papyrusScript, npc); } // this != null check only exists because bugs. @TODO: remove when we get 100% papyrus support
+                                                                                                                               //PapyrusESD esdScript = new PapyrusESD(esm, scriptManager, param, text, script, npc, papyrusScript, 99999);
+                    }
+
+                    enemy.TalkID = npcManager.GetESD(group.IdList(), npc); // creates and returns a character esd
+                    enemy.NPCParamID = npcManager.GetParam(npc); // creates and returns an npcparam
+                    enemy.EntityID = npc.entity;
+
+                    enemy.Unk1.DisplayGroups[0] = 0;
+                    enemy.CollisionPartName = rootCollision.Name;
+
+                    msb.Parts.Enemies.Add(enemy);
+                }
+
+                /* TEST Creatures */ // make some goats where enemies would spawn just as a test
+                foreach (CreatureContent creature in chunk.creatures)
+                {
+                    MSBE.Part.Enemy enemy = MakePart.Creature();
+                    enemy.Position = creature.relative + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                    enemy.Rotation = creature.rotation;
+
+                    enemy.Unk1.DisplayGroups[0] = 0;
+                    enemy.CollisionPartName = rootCollision.Name;
+                    enemy.EntityID = creature.entity;
+
+                    msb.Parts.Enemies.Add(enemy);
+                }
+
+                /* Handle area name */
+                int paramId = int.Parse($"60{group.map:D2}{group.area:D2}{nextMPR:D2}");
+
+
+                MSBE.Region.MapPoint mpr = new();
+                mpr.Name = $"{chunk.cell.name} placename";
+                mpr.Shape = new MSB.Shape.Box(chunk.bounds.X, chunk.bounds.Z, chunk.bounds.Y);
+                mpr.Position = chunk.root + Const.TEST_OFFSET1 + Const.TEST_OFFSET2 - new Vector3(0f, chunk.bounds.Y / 2f, 0f);
+                mpr.Rotation = Vector3.Zero;
+                mpr.RegionID = nextMPR++;
+                mpr.MapStudioLayer = 4294967295;
+                mpr.WorldMapPointParamID = paramanager.GenerateWorldMapPoint(group, chunk.cell, chunk.root, paramId);
+
+                mpr.MapID = -1;
+                mpr.UnkE08 = 255;
+                mpr.UnkS04 = 0;
+                mpr.UnkS0C = -1;
+                mpr.UnkT04 = -1;
+                mpr.UnkT08 = -1;
+                mpr.UnkT0C = -1;
+                mpr.UnkT10 = -1;
+                mpr.UnkT14 = -1;
+                mpr.UnkT18 = -1;
+
+                msb.Regions.MapPoints.Add(mpr);
+            }
+
+            /* EnvMap & REM for interior */
+            // @TODO: make this per chunk so we can setupd different rems for different interiors
+            {
+                /* Create envmap texture file */
+                int envId = 200;
+                int size = 4096, crossfade = 8;
+                EnvManager.CreateEnvMaps(group, envId);
+
+                /* Create an envbox */
+                MSBE.Region.EnvironmentMapEffectBox envBox = MakePart.EnvBox();
+                envBox.Name = $"Env_Box{envId.ToString("D3")}";
+                envBox.Shape = new MSB.Shape.Box(size + crossfade, size + crossfade, size + crossfade);
+                envBox.Position = new Vector3(0f, size * -0.5f, 0f) + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                envBox.TransitionDist = crossfade / 2f;
+                msb.Regions.EnvironmentMapEffectBoxes.Add(envBox);
+
+                MSBE.Region.EnvironmentMapPoint envPoint = MakePart.EnvPoint();
+                envPoint.Name = $"Env_Point{envId.ToString("D3")}";
+                envPoint.Position = new Vector3(0f, size * -0.5f, 0f) + Const.TEST_OFFSET1 + Const.TEST_OFFSET2;
+                envPoint.UnkMapID = new byte[] { (byte)group.map, (byte)group.area, (byte)group.unk, (byte)group.block };
+                msb.Regions.EnvironmentMapPoints.Add(envPoint);
+            }
+
+            /* Auto resource */
+            AutoResource.Generate(group.map, group.area, group.unk, group.block, msb);
+
+            return pool;
         }
     }
 

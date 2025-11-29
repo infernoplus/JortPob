@@ -22,21 +22,21 @@ namespace JortPob.Common
             try
             {
                 // Create synth
-                SpeechSynthesizer synthesizer = new();
+                using (SpeechSynthesizer synthesizer = new())
+                {
+                    // Check if this audio file exists in the cache already // @TODO: ideally we generate a voice cache later but guh w/e filesystem check for now
+                    if (System.IO.File.Exists(wemPath)) { return wemPath; }
 
-                // Check if this audio file exists in the cache already // @TODO: ideally we generate a voice cache later but guh w/e filesystem check for now
-                if (System.IO.File.Exists(wemPath)) { return wemPath; }
+                    if (npc.sex == NpcContent.Sex.Female) { synthesizer.SelectVoice("Microsoft Zira Desktop"); }
+                    else { synthesizer.SelectVoice("Microsoft David Desktop"); }
 
-                if (npc.sex == NpcContent.Sex.Female) { synthesizer.SelectVoice("Microsoft Zira Desktop"); }
-                else { synthesizer.SelectVoice("Microsoft David Desktop"); }
+                    // Make folder if doesn't exist (this is so ugly lmao)
+                    if (!System.IO.Directory.Exists(lineDir)) { System.IO.Directory.CreateDirectory(lineDir); }
 
-                // Make folder if doesn't exist (this is so ugly lmao)
-                if (!System.IO.Directory.Exists(lineDir)) { System.IO.Directory.CreateDirectory(lineDir); }
-
-                // Write 32bit 44100hz wav file (required format for wem)
-                synthesizer.SetOutputToWaveFile(wavPath, new SpeechAudioFormatInfo(44100, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
-                synthesizer.Speak(line);
-                synthesizer.Dispose();
+                    // Write 32bit 44100hz wav file (required format for wem)
+                    synthesizer.SetOutputToWaveFile(wavPath, new SpeechAudioFormatInfo(44100, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
+                    synthesizer.Speak(line);
+                }
 
                 // Convert wav to wem
                 // Setup paths, make folders
@@ -65,7 +65,7 @@ namespace JortPob.Common
                         CreateNoWindow = true
                     };
                     startInfo.ArgumentList.AddRange(new string[] {"create-new-project", $"\"{projectPath}\"", "--platform", "Windows" });
-                    var process = Process.Start(startInfo);
+                    using var process = Process.Start(startInfo);
                     process.WaitForExit();
                 }
 
@@ -79,7 +79,7 @@ namespace JortPob.Common
                         CreateNoWindow = true
                     };
                     startInfo.ArgumentList.AddRange(new string[] { "convert-external-source", $"\"{projectPath}\"", "--source-file", xmlRelative, "--output", "Windows", $"\"{lineDir}\"" });
-                    var process = Process.Start(startInfo);
+                    using var process = Process.Start(startInfo);
                     process.WaitForExit();
                 }
             }

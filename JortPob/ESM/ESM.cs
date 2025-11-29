@@ -67,7 +67,7 @@ namespace JortPob
                             UseShellExecute = false,
                             CreateNoWindow = true
                         };
-                        var mergeProcess = Process.Start(mergeStartInfo);
+                        using var mergeProcess = Process.Start(mergeStartInfo);
                         mergeProcess.WaitForExit();
                     }
                 }
@@ -81,7 +81,7 @@ namespace JortPob
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
-                var convProcess = Process.Start(convStartInfo);
+                using var convProcess = Process.Start(convStartInfo);
                 convProcess.WaitForExit();
             }
             /* Process json */
@@ -201,9 +201,7 @@ namespace JortPob
             }
 
             /* Multi threading to speed this up... */
-            List<List<Cell>> cells = CellWorker.Go(this);
-            exterior = cells[0];
-            interior = cells[1];
+            (exterior, interior) = CellWorker.Go(this);
             landscapesByCoordinate = new();
 
             /* Process papyrus scripts */
