@@ -1116,11 +1116,15 @@ namespace JortPob
                         case Papyrus.Call.Type.AddSpell:
                             {
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                                if (spell == null) { Lort.Log($"AddSpell: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                                 if (call.target == "player")
                                 {
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                     {
-                                        // @TODO: stub. should give the player the item of a spell. we don't really have those all mapped out yet though so guh
+                                        ItemManager.ItemInfo scroll = itemManager.GetSpellScroll(call.parameters[0]);
+                                        if (scroll == null) { Lort.Log($"AddSpell: no scroll registered for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
+                                        int row = paramanager.GenerateAddItemLot(scroll, 1);
+                                        lines.Add($"AwardItemLot({row})");
                                     }
                                     else
                                     {
