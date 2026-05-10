@@ -40,6 +40,7 @@ namespace JortPob
 
         public readonly List<ItemInfo> items; // string is record if of item from MW. int is the row id of the item in Elden Ring, type is type of item in ER
         public readonly List<LeveledList> lists; // leveled lists for items
+        private readonly Dictionary<string, ItemInfo> spellScrolls = new(); // spell id -> generated scroll item, populated by RegisterSpellScrolls()
 
         private Paramanager paramanager;
         private ScriptManager scriptManager;
@@ -878,6 +879,13 @@ namespace JortPob
 
             /* No match! */
             return null;
+        }
+
+        /* Returns the scroll ItemInfo for a given Morrowind Spell or Power id, or null if no scroll exists. */
+        public ItemInfo GetSpellScroll(string spellId)
+        {
+            if (spellId == null) { return null; }
+            return spellScrolls.TryGetValue(spellId.Trim().ToLower(), out ItemInfo info) ? info : null;
         }
 
         /* Resolves a content objects inventory (record id and quanity) to actual ItemInfo objects */
