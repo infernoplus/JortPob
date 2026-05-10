@@ -23,7 +23,7 @@ Damage and other unmapped Morrowind effects produce inert SpEffects today (`Spef
 
 One new pass inside `ItemManager`. No new manager class.
 
-- `ItemManager` constructor gains a `SpeffManager` parameter (becomes its 7th dependency — wiring change in `Main.cs`).
+- `ItemManager` already takes `SpeffManager` as its 4th constructor parameter (`ItemManager.cs:54`). No new dependency, no Main.cs wiring change.
 - New private method `RegisterSpellScrolls()` runs at the end of ItemManager construction, after the existing item-build phase.
 - New private dictionary `spellScrolls : Dictionary<string, ItemInfo>` keyed by spell id.
 - New public accessor `ItemManager.GetSpellScroll(string spellId) : ItemInfo` (returns null on miss).
@@ -67,7 +67,7 @@ Existing common-event remove-item handler picks up the flag and calls `RemoveIte
 
 ## Goods row construction
 
-**Template:** clone an existing reusable-buff Goods row from base ER. Selected at implementation time by inspection — the chosen template only contributes audio/menu-category defaults since the meaningful fields are all overwritten.
+**Template:** clone `EquipParamGoods` row `2000900` (Divine Blessing). Already used as a goods template elsewhere in `ItemManager` (`ItemManager.cs:741`). Meaningful fields are all overridden below; template choice affects only sound/menu-category defaults.
 
 **Field overrides per scroll:**
 
@@ -84,7 +84,9 @@ Existing common-event remove-item handler picks up the flag and calls `RemoveIte
 
 Naming is the same pattern for both Spell and Power records — no cosmetic differentiation. If once-per-day Power semantics are added later, they will be distinguished behaviorally and naming can follow then.
 
-**ID range:** scrolls allocate from a contiguous block in EquipParamGoods that doesn't collide with vanilla rows or other generated items. Exact base id is locked in at implementation time by inspecting `Paramanager`'s existing allocation conventions and choosing the next free band.
+**ID range:** allocate via the existing `nextGoodsId` counter in `ItemManager` (starts at 30000, increments by 10 per row — `ItemManager.cs:67`, line 275). Spell scrolls register *after* the existing goods-generation pass so they consume the next free contiguous block, no collision.
+
+**Template:** clone `EquipParamGoods` row `2000900` (Divine Blessing) — already used as a goods template elsewhere in `ItemManager` (line 741). All meaningful fields are overridden so template choice mostly affects sound/menu-category defaults.
 
 ## Error handling
 
