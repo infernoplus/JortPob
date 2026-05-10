@@ -397,6 +397,9 @@ namespace JortPob
 
             /* Okay I lied, for real lastly we create recipemanager which handles alchemy recipe stuff */
             recipeManager = new RecipeManager(paramanager, scriptManager, this, textManager);
+
+            /* Generate Goods item ("scroll") per Spell/Power so AddSpell/RemoveSpell can grant/remove them. */
+            RegisterSpellScrolls();
         }
 
         /* Generates one reusable Goods item per Morrowind Spell/Power, linked to the SpEffect SpeffManager already produces.
