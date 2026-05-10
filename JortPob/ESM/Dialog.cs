@@ -1156,6 +1156,7 @@ namespace JortPob
                         case Papyrus.Call.Type.Cast:
                             {
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                                if (spell == null) { Lort.Log($"Cast: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                                 if (call.parameters[1].ToLower().Trim() == "player")
                                 {
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
