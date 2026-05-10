@@ -1136,11 +1136,15 @@ namespace JortPob
                         case Papyrus.Call.Type.RemoveSpell:
                             {
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                                if (spell == null) { Lort.Log($"RemoveSpell: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                                 if (call.target == "player")
                                 {
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                     {
-                                        // @TODO: stub. this should remove a spell item from a players inventory but we dont have those mapped out yet
+                                        ItemManager.ItemInfo scroll = itemManager.GetSpellScroll(call.parameters[0]);
+                                        if (scroll == null) { Lort.Log($"RemoveSpell: no scroll registered for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
+                                        Script.Flag removeFlag = scriptManager.common.GetOrRegisterRemoveItem(scroll, 1);
+                                        lines.Add($"SetEventFlag({removeFlag.id}, FlagState.On)");
                                     }
                                     else
                                     {
