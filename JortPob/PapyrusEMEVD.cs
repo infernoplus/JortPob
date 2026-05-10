@@ -980,11 +980,15 @@ namespace JortPob
                     case Call.Type.AddSpell:
                         {
                             SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                            if (spell == null) { Lort.Log($"AddSpell: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                             if (call.target == "player")
                             {
                                 if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                 {
-                                    // @TODO: stub. should give the player the item of a spell. we don't really have those all mapped out yet though so guh
+                                    ItemManager.ItemInfo scroll = itemManager.GetSpellScroll(call.parameters[0]);
+                                    if (scroll == null) { Lort.Log($"AddSpell: no scroll registered for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
+                                    int row = paramanager.GenerateAddItemLot(scroll, 1);
+                                    lines.Add($"AwardItemLot({row});");
                                 }
                                 else
                                 {
@@ -997,11 +1001,15 @@ namespace JortPob
                     case Call.Type.RemoveSpell:
                         {
                             SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                            if (spell == null) { Lort.Log($"RemoveSpell: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                             if (call.target == "player")
                             {
                                 if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                 {
-                                    // @TODO: stub. this should remove a spell item from a players inventory but we dont have those mapped out yet
+                                    ItemManager.ItemInfo scroll = itemManager.GetSpellScroll(call.parameters[0]);
+                                    if (scroll == null) { Lort.Log($"RemoveSpell: no scroll registered for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
+                                    Script.Flag removeFlag = scriptManager.common.GetOrRegisterRemoveItem(scroll, 1);
+                                    lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {removeFlag.id}, ON);");
                                 }
                                 else
                                 {
@@ -1021,6 +1029,7 @@ namespace JortPob
                     case Call.Type.Cast:
                         {
                             SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+                            if (spell == null) { Lort.Log($"Cast: no SpeffSpell for '{call.parameters[0]}', skipping", Lort.Type.Debug); break; }
                             if (call.parameters[1].ToLower().Trim() == "player")
                             {
                                 if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
