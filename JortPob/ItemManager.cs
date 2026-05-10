@@ -399,6 +399,98 @@ namespace JortPob
             recipeManager = new RecipeManager(paramanager, scriptManager, this, textManager);
         }
 
+        /* Generates one reusable Goods item per Morrowind Spell/Power, linked to the SpEffect SpeffManager already produces.
+         * The scroll's refId_default fires the existing SpEffect on use; isConsume=0 keeps it in inventory.
+         * maxRepositoryNum=1 caps the inventory at one per spell so duplicate AddSpell calls silently no-op. */
+        private void RegisterSpellScrolls()
+        {
+            // The set of MagicEffect cases that SpeffManager.GenerateSpeff actually maps onto SpEffect fields.
+            // If a spell has no effect from this set, the resulting scroll is inert; we mark it [unimplemented]
+            // in the description so the punch-list of unmapped effects is visible from an FMG dump.
+            HashSet<SpeffManager.Speff.Effect.MagicEffect> mapped = new()
+            {
+                SpeffManager.Speff.Effect.MagicEffect.RestoreHealth,
+                SpeffManager.Speff.Effect.MagicEffect.RestoreMagicka,
+                SpeffManager.Speff.Effect.MagicEffect.RestoreFatigue,
+                SpeffManager.Speff.Effect.MagicEffect.FortifyHealth,
+                SpeffManager.Speff.Effect.MagicEffect.FortifyMagicka,
+                SpeffManager.Speff.Effect.MagicEffect.FortifyFatigue,
+                SpeffManager.Speff.Effect.MagicEffect.FortifyAttribute,
+            };
+
+            FsParam goodsParam = paramanager.param[Paramanager.ParamType.EquipParamGoods];
+
+            List<SpeffManager.SpeffSpell> spells = new();
+            spells.AddRange(speffManager.GetSpeffBySpellType(SpeffManager.SpeffSpell.SpellType.Spell));
+            spells.AddRange(speffManager.GetSpeffBySpellType(SpeffManager.SpeffSpell.SpellType.Power));
+
+            foreach (SpeffManager.SpeffSpell spell in spells)
+            {
+                // Clone Divine Blessing (2000900) as the goods template — already used as a goods template
+                // elsewhere in this file. Meaningful fields are overridden below.
+                FsParam.Row row = paramanager.CloneRow(goodsParam[2000900], $"Scroll :: {spell.id}", nextGoodsId);
+
+                row["refId_default"].Value.SetValue(spell.row);              // fire the existing SpEffect on use
+                row["isConsume"].Value.SetValue((byte)0);                    // reusable
+                row["maxNum"].Value.SetValue((short)1);                      // cap inventory at one
+                row["maxRepositoryNum"].Value.SetValue((short)1);            // cap repository at one too
+
+                // Icon: pull from the same buff-icon system SpeffManager already uses (SpeffManager.cs:205).
+                if (spell.effects.Count > 0)
+                {
+                    IconManager.BuffInfo buff = textureManager.icon.GetBuffByType(spell.effects[0].effect);
+                    if (buff != null) { row["iconId"].Value.SetValue((int)buff.id); }
+                    else { row["iconId"].Value.SetValue(-1); }
+                }
+                else
+                {
+                    row["iconId"].Value.SetValue(-1);
+                }
+
+                paramanager.AddOrReplaceRow(goodsParam, row);
+
+                // FMG text. Title-case the spell id for display ("fire_bite" -> "Fire Bite").
+                string displayName = $"Scroll of {ToTitleCase(spell.id)}";
+                string description = BuildScrollDescription(spell, mapped);
+                textManager.AddGoods(nextGoodsId, displayName, "", description, "");
+
+                // Track in spellScrolls dictionary for AddSpell/RemoveSpell stubs to look up.
+                ItemInfo info = new(spell.id, Type.Goods, nextGoodsId, 0, true, ItemInfo.OriginalType.MiscItem);
+                spellScrolls[spell.id] = info;
+                items.Add(info);
+
+                nextGoodsId += 10;
+            }
+        }
+
+        /* Title-cases a snake_case Morrowind id for display. "fire_bite" -> "Fire Bite". */
+        private static string ToTitleCase(string id)
+        {
+            string spaced = id.Replace('_', ' ').Trim();
+            return System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(spaced);
+        }
+
+        /* Builds a description from the spell's effect list. Suffixes [unimplemented]
+         * if NO effect on the spell maps to a SpEffect field SpeffManager actually translates. */
+        private static string BuildScrollDescription(
+            SpeffManager.SpeffSpell spell,
+            HashSet<SpeffManager.Speff.Effect.MagicEffect> mapped)
+        {
+            if (spell.effects.Count == 0) { return "[unimplemented]"; }
+
+            System.Text.StringBuilder sb = new();
+            bool anyMapped = false;
+            foreach (SpeffManager.Speff.Effect e in spell.effects)
+            {
+                if (mapped.Contains(e.effect)) { anyMapped = true; }
+                if (sb.Length > 0) { sb.Append(", "); }
+                sb.Append(e.effect.ToString());
+                if (e.duration > 0) { sb.Append($" {e.duration}s"); }
+            }
+            if (!anyMapped) { sb.Append(" [unimplemented]"); }
+            return sb.ToString();
+        }
+
         private int GenerateCustomWeapon(Override.ItemRemap remap)
         {
             FsParam customWeaponParam = paramanager.param[Paramanager.ParamType.EquipParamCustomWeapon];
