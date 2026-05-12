@@ -1,62 +1,46 @@
-﻿using JortPob.Common;
+﻿using System;
+using System.Collections.Concurrent;
+using JortPob.Common;
 using JortPob.Model;
 using SharpAssimp;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace JortPob.Worker
 {
-    public class FlverWorker : Worker
+    public class FlverWorker(MaterialContext materialContext, List<PreModel> meshes) : IWorker<List<ModelInfo>>
     {
-        private MaterialContext materialContext;
-        private List<PreModel> meshes; // in
-
-        private int start;
-        private int end;
-
-        public List<ModelInfo> models; // out
-
-        public FlverWorker(MaterialContext materialContext, List<PreModel> meshes, int start, int end)
+        private List<ModelInfo> Run(MaterialContext materialContext, List<PreModel> meshes)
         {
-            this.materialContext= materialContext;
-            this.meshes = meshes;
-
-            this.start = start;
-            this.end = end;
-
-            models = new();
-
-            _thread = new Thread(Run);
-            _thread.Start();
-        }
-
-        private void Run()
-        {
-            ExitCode = 1;
-
             AssimpContext assimpContext = new();
-            for (int i = start; i < Math.Min(meshes.Count, end); i++)
+            ConcurrentBag<ModelInfo> models = new ConcurrentBag<ModelInfo>(); 
+            
+            Parallel.ForEach(meshes, premodel =>
             {
-                PreModel premodel = meshes[i];
-
                 if (string.IsNullOrEmpty(premodel.mesh))
                 {
                     Lort.Log(" ## ERROR ## Premodel mesh name is invalid!", Lort.Type.Debug);
                     Lort.TaskIterate();
-                    continue;
+                    return;
                 }
 
-                string newModelpath = Path.ChangeExtension(premodel.mesh.ToLower(), "flver").Replace(@"\", "_").Replace(" ", "");
+                string newModelpath = Path.ChangeExtension(premodel.mesh.ToLower(), "flver").Replace(@"\", "_")
+                    .Replace(" ", "");
                 /* Generate the 100 scale version of the model. This is the baseline. After this we generate dynamics and baked scale versions from this */
-                string meshIn = Path.Combine(Const.MORROWIND_PATH, $@"Data Files\meshes\{premodel.mesh.ToLower()}");
+                string meshIn = Path.Combine(Const.MORROWIND_PATH,
+                    $@"Data Files\meshes\{premodel.mesh.ToLower()}");
                 string meshOut = Path.Combine(Const.CACHE_PATH, "meshes", newModelpath);
                 ModelInfo modelInfo = new(premodel.mesh, Path.Combine("meshes", newModelpath), 100);
                 //modelInfo = ModelConverter.FBXtoFLVER(assimpContext, materialContext, modelInfo, premodel.forceCollision, meshIn, meshOut);
 
-                modelInfo = ModelConverter.NIFToFLVER(materialContext, modelInfo, premodel.forceCollision, meshIn, meshOut);
+                modelInfo = ModelConverter.NIFToFLVER(materialContext, modelInfo, premodel.forceCollision, meshIn,
+                    meshOut);
+                if (modelInfo == null) return;
+
                 models.Add(modelInfo);
 
                 /* if a model has no collision we don't need baked scale or dynamic versions. nocollide static meshes can just be scaled freely */
@@ -64,12 +48,15 @@ namespace JortPob.Worker
                 if (modelInfo.HasCollision())
                 {
                     bool makeDynamic = false;
-                    foreach (KeyValuePair<int, int> kvp in premodel.scales)
+                    Parallel.ForEach(premodel.scales, kvp =>
                     {
                         int scale = kvp.Key;
                         int count = kvp.Value;
 
-                        if (scale == 100) { continue; }  // Already done above;
+                        if (scale == 100)
+                        {
+                            return;
+                        } // Already done above;
 
                         if (count <= Const.ASSET_BAKE_SCALE_CUTOFF)
                         {
@@ -77,76 +64,51 @@ namespace JortPob.Worker
                         }
                         else
                         {
-                            ModelInfo baked = new(modelInfo.name, modelInfo.path.Replace(".flver", $"_s{scale}.flver"), scale);
-                            FLVERUtil.Scale(Path.Combine(Const.CACHE_PATH, modelInfo.path), Path.Combine(Const.CACHE_PATH, baked.path), scale * 0.01f);
+                            ModelInfo baked = new(modelInfo.name,
+                                modelInfo.path.Replace(".flver", $"_s{scale}.flver"),
+                                scale);
+                            FLVERUtil.Scale(Path.Combine(Const.CACHE_PATH, modelInfo.path),
+                                Path.Combine(Const.CACHE_PATH, baked.path), scale * 0.01f);
                             if (modelInfo.collision != null)
                             {
-                                baked.collision = new(modelInfo.collision.name, modelInfo.collision.obj.Replace(".obj", $"_s{scale}.obj"));
+                                baked.collision = new(modelInfo.collision.name,
+                                    modelInfo.collision.obj.Replace(".obj", $"_s{scale}.obj"));
                                 Obj obj = new(Path.Combine(Const.CACHE_PATH, modelInfo.collision.obj));
                                 obj.scale(scale * 0.01f);
                                 obj.write(Path.Combine(Const.CACHE_PATH, baked.collision.obj));
                             }
+
                             baked.size = modelInfo.size * (scale * 0.01f);
                             models.Add(baked);
                         }
-                    }
-                    if (makeDynamic || premodel.forceDynamic) // force dynamic does not force all instances to be dynamic, it just forces us to make a dynamic version. used by itemcontent specifically
+                    });
+
+                    if (makeDynamic ||
+                        premodel
+                            .forceDynamic) // force dynamic does not force all instances to be dynamic, it just forces us to make a dynamic version. used by itemcontent specifically
                     {
                         ModelInfo dynamic = new(modelInfo.name, modelInfo.path, Const.DYNAMIC_ASSET);
                         dynamic.collision = modelInfo.collision;
-                        dynamic.size = modelInfo.size; // in the future this would be a good time to find and save the largest dynamic scale used for lod gen
+                        dynamic.size =
+                            modelInfo
+                                .size; // in the future this would be a good time to find and save the largest dynamic scale used for lod gen
                         models.Add(dynamic);
                     }
                 }
 
                 Lort.TaskIterate(); // Progress bar update
-            }
+            });
+            
             assimpContext.Dispose();
 
-            //var barkbark = models.AsParallel().Where(m => m.textures.Any(t => t.name.ToLower().Contains("wood")) || m.textures.Any(t => t.name.ToLower().Contains("wood") || m.textures.Any(t => t.name.ToLower().Contains("wood")))).Count();
-
-            //Lort.Log($"{barkbark} models contain wood materials", Lort.Type.Debug);
-
-            IsDone = true;
-            ExitCode = 0;
+            return models.ToList();
         }
 
-        public static List<ModelInfo> Go(MaterialContext materialContext, List<PreModel> meshes)
+        public List<ModelInfo> Go()
         {
             Lort.Log($"Converting {meshes.Count} models...", Lort.Type.Main); // Not that slow but multithreading good
             Lort.NewTask("Converting NIF", meshes.Count);
-
-            int partition = (int)Math.Ceiling(meshes.Count / (float)Const.THREAD_COUNT);
-            List<FlverWorker> workers = new();
-            for (int i = 0; i < Const.THREAD_COUNT; i++)
-            {
-                int start = i * partition;
-                int end = start + partition;
-                FlverWorker worker = new(materialContext, meshes, start, end);
-                workers.Add(worker);
-            }
-
-            /* Wait for threads to finish */
-            while (true)
-            {
-                bool done = true;
-                foreach (FlverWorker worker in workers)
-                {
-                    done &= worker.IsDone;
-                }
-
-                if (done)
-                    break;
-            }
-
-            /* Merge output */
-            List<ModelInfo> models = new();
-            foreach (FlverWorker worker in workers)
-            {
-                models.AddRange(worker.models);
-            }
-
-            return models;
+            return Run(materialContext, meshes);
         }
     }
 }

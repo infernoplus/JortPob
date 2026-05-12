@@ -91,6 +91,9 @@
     <Reference Include="ZstdNet">
       <HintPath>DLL\ZstdNet.dll</HintPath>
     </Reference>
+      <Reference Include="FliteNative">
+          <HintPath>DLL\flight_wrapper.dll</HintPath>
+      </Reference>
   </ItemGroup>
 
   <!-- DLLs -->
@@ -129,6 +132,7 @@
 		<Copy SourceFiles="DLL\WitchyFormats.dll" DestinationFolder="$(OutDir)" />
 		<Copy SourceFiles="DLL\ZstdNet.dll" DestinationFolder="$(OutDir)" />
 		<Copy SourceFiles="DLL\Zydis.dll" DestinationFolder="$(OutDir)" />
+        <Copy SourceFiles="DLL\flite_wrapper.dll" DestinationFolder="$(OutDir)"/>
 	</Target>
 	
   <!-- Resources -->

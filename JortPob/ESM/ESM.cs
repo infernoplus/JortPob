@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using static JortPob.Dialog;
 
 namespace JortPob
@@ -225,9 +227,7 @@ namespace JortPob
             {
                 leveled.Add(new(jsonNode));
             }
-
-            /* Multi threading to speed this up... */
-            (exterior, interior) = CellWorker.Go(this);
+            
             landscapesByCoordinate = new();
 
             /* Process papyrus scripts */
@@ -260,6 +260,13 @@ namespace JortPob
                 SoundInfo sound = new(jsonNode);
                 sounds.Add(sound);
             }
+        }
+        
+        public void BuildCells()
+        {
+            Lort.Log("BUILDING CELLS", Lort.Type.Debug);
+            CellWorker worker = new CellWorker(this);
+            (exterior, interior) = worker.Go();
         }
 
         /* List of types that we should search for references */

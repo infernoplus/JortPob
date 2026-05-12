@@ -60,6 +60,7 @@
 	<Copy SourceFiles="..\JortPob\DLL\WitchyFormats.dll" DestinationFolder="$(OutDir)" />
 	<Copy SourceFiles="..\JortPob\DLL\ZstdNet.dll" DestinationFolder="$(OutDir)" />
 	<Copy SourceFiles="..\JortPob\DLL\Zydis.dll" DestinationFolder="$(OutDir)" />
+	  <Copy SourceFiles="..\JortPob\DLL\flite_wrapper.dll" DestinationFolder="$(OutDir)" />
   </Target>
 
 </Project>

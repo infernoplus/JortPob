@@ -10,37 +10,28 @@ namespace JortUX
     /// </summary>
     public partial class MainWindow : Window
     {
-        public Thread job, log;
-        public bool running;
+        private CancellationTokenSource JortCts = new();
         public MainWindow()
         {
             InitializeComponent();
-
-            running = true;
-            job = new(Run);
-            log = new(Check);
-
-
-            job.Start();
-            log.Start();
+            Task.Run(Check, JortCts.Token).ConfigureAwait(false);
+            Task.Run(Main.Convert, JortCts.Token).ConfigureAwait(false);
         }
 
-        public void Check()
+        private void Check()
         {
-            while (running)
+            while (!JortCts.IsCancellationRequested)
             {
                 if (JortPob.Common.Lort.update)
                 {
-                    this.Dispatcher.Invoke(() =>
-                    {
-                        ReRender();
-                    });
+                    Dispatcher.Invoke(ReRender);
                 }
+
                 Thread.Yield();
             }
         }
 
-        public void ReRender()
+        private void ReRender()
         {
             TextBlock main = (TextBlock)FindName("MainOutput");
             TextBlock debug = (TextBlock)FindName("DebugOutput");
@@ -66,19 +57,10 @@ namespace JortUX
 
             JortPob.Common.Lort.update = false;
         }
-
-        public void Run()
-        {
-            Main.Convert();
-            running = false;
-        }
-
+        
         private void OnClose(object sender, CancelEventArgs e)
         {
-            if (job.IsAlive)
-            {
-                e.Cancel = true; // Prevent closing window. The job thread can't be stopped easily so guh. Use debug terminate to kill program.
-            }
+            JortCts.Cancel(); // stop Lort
         }
     }
 }

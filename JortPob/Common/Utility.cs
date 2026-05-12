@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using WitchyFormats;
 using Xbrz;
 
@@ -508,39 +509,39 @@ namespace JortPob.Common
         {
             using Process process = Process.Start(startInfo);
             if (process == null)
-            {
                 throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
-            }
+
+            // Read async BEFORE WaitForExit to avoid deadlock
+            var stdoutTask = startInfo.RedirectStandardOutput 
+                ? process.StandardOutput.ReadToEndAsync() 
+                : Task.FromResult(string.Empty);
+            var stderrTask = startInfo.RedirectStandardError 
+                ? process.StandardError.ReadToEndAsync() 
+                : Task.FromResult(string.Empty);
 
             bool exited;
-            if(timeOutMillis == 0) { exited = process.WaitForExit(TimeSpan.FromMilliseconds(Const.DEFAULT_PROCESS_TIMEOUT)); }
+            if (timeOutMillis == 0)       exited = process.WaitForExit(TimeSpan.FromMilliseconds(Const.DEFAULT_PROCESS_TIMEOUT));
             else if (timeOutMillis < 0) { process.WaitForExit(); exited = true; }
-            else { exited = process.WaitForExit(TimeSpan.FromMilliseconds(timeOutMillis)); }
+            else                          exited = process.WaitForExit(TimeSpan.FromMilliseconds(timeOutMillis));
+
+            string stdout = stdoutTask.Result;
+            string stderr = stderrTask.Result;
 
             if (!exited)
             {
                 try
                 {
-                    // Forceful termination if timeout occurs
                     process.Kill();
-                    process.WaitForExit(); // Wait for OS cleanup
+                    process.WaitForExit();
                     throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
                 }
-                catch (InvalidOperationException)
-                {
-                    // Process may have just exited before Kill() was called.
-                    // We'll proceed to check the exit code below.
-                }
+                catch (InvalidOperationException) { }
             }
 
-            // VITAL: Check the process exit code after successful exit or timeout kill
             if (process.ExitCode != 0)
             {
-                // Optional: Read StandardError for better debugging info
-                string error = startInfo.RedirectStandardError ? process.StandardError.ReadToEnd() : "N/A (Error stream not redirected)";
-
-                // Throw a specific exception indicating execution failure
-                throw new ApplicationException($"Process failed with exit code {process.ExitCode}. Error: {error}");
+                throw new ApplicationException(
+                    $"Process failed with exit code {process.ExitCode}.\nSTDOUT: {stdout}\nSTDERR: {stderr}");
             }
         }
     }

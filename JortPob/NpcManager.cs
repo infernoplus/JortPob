@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using static JortPob.Dialog;
 
 namespace JortPob
@@ -452,8 +454,9 @@ namespace JortPob
         /* ESDs are now 1 to 1 with individual placements of enemies/creatures so the file writing has been simplified */
         public void Write()
         {
-            EsdWorker.Go(esds);
-
+            EsdWorker esdWorker = new EsdWorker(esds);
+            esdWorker.Go();
+            
             Lort.Log($"Binding {esds.Count()} ESDs...", Lort.Type.Main);
             Lort.NewTask($"Binding ESDs", esds.Count());
 

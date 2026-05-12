@@ -1,62 +1,45 @@
 ﻿using JortPob.Common;
-using SoulsFormats;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Reactive;
 using System.Threading;
 using System.Threading.Tasks;
-using static JortPob.FactionInfo;
 
 namespace JortPob.Worker
 {
-    public class SamWorker : Worker
+    public class SamWorker : IWorker<Unit>
     {
         private readonly List<SoundManager.SAMData> datas;
-        private readonly int start;
-        private readonly int end;
 
-        public SamWorker(List<SoundManager.SAMData> datas, int start, int end)
+        public SamWorker(List<SoundManager.SAMData> datas)
         {
             this.datas = datas;
-            this.start = start;
-            this.end = end;
-
-            _thread = new Thread(Run);
-            _thread.Start();
         }
 
-        private void Run()
+        private Unit Run()
         {
-            ExitCode = 1;
-
-            for(int i = start;i<Math.Min(datas.Count(), end);i++)
+            List<SAM.GenerateAltEntry> files = new();
+            foreach (var data in datas)
             {
-                SoundManager.SAMData dat = datas[i];
-                SAM.GenerateAlt(dat.dialog, dat.info, dat.line, dat.hashName, dat.npc);
-                Lort.TaskIterate(); // Progress bar update
+               files.Add(new(data.dialog, data.info, data.line, data.hashName, data.npc)); 
             }
-
-            IsDone = true;
-            ExitCode = 0;
+            SAM.GenerateAltBatch(files);
+            // Heavy overhead with wwise console being started for each instance so in this case limiting parallelism is needed
+            /*
+            Parallel.ForEach(datas, new ParallelOptions{MaxDegreeOfParallelism = 4}, data =>
+            {
+                SAM.GenerateAlt(data.dialog, data.info, data.line, data.hashName, data.npc);
+                Lort.TaskIterate();
+            });
+            */
+            return Unit.Default;
         }
 
-        public static void Go(List<SoundManager.SAMData> datas)
+        public Unit Go()
         {
-            Lort.Log($"Generating {datas.Count()} WEMs...", Lort.Type.Main);
-            Lort.NewTask("Writing WEMs", datas.Count);
-
-            int partition = (int)Math.Ceiling(datas.Count / (float)Const.THREAD_COUNT);
-            List<SamWorker> workers = new();
-
-            datas.AsParallel()
-                .WithDegreeOfParallelism(Const.THREAD_COUNT)
-                .ForAll(data =>
-                {
-                    SAM.GenerateAlt(data.dialog, data.info, data.line, data.hashName, data.npc);
-                    Lort.TaskIterate();
-                    return;
-                });
+            Lort.Log("BUILDING AUDIO FILES", Lort.Type.Main);
+            return Run();
         }
     }
 }

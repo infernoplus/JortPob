@@ -3,34 +3,24 @@ using JortPob.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive;
 using System.Threading;
+using System.Threading.Tasks;
 using SoulsFormats;
 using SoulsIds;
 
 namespace JortPob.Worker
 {
-    public class EsdWorker : Worker
+    public class EsdWorker(List<NpcManager.EsdInfo> esds) : IWorker<Unit>
     {
-
-        private readonly List<NpcManager.EsdInfo> esds;
-
-        public EsdWorker(List<NpcManager.EsdInfo> esds)
-        {
-            this.esds = esds;
-            _thread = new Thread(Run);
-            _thread.Start();
-        }
-
         /**
          * Naive implementation of using ESDLang as a library. Since it processes everything
          * linearly in a single thread we still get slowed down by IO. Ideally, we would break up
          * the list of ESDs into reasonably-large chunks, and we'd defer writing them to disk until we've accumulated
          * a few.
          */
-        private void Run()
+        private Unit Run()
         {
-            ExitCode = 1;
-
             Predicate<string> allowAnyFilter = delegate { return true; };
             ESDLang.EzSemble.EzSembleContext context = LoadEsdDocumentationContext();
             List<EsdDescriptor> esdDescriptors = LoadEsdDescriptors();
@@ -42,8 +32,8 @@ namespace JortPob.Worker
                 ["-er", "-i", templateEsdInfo.py, "-writeloose", templateEsdInfo.esd]
             );
             ESDLang.Script.Compiler compiler = new ESDLang.Script.Compiler(context, compilerOptions);
-
-            foreach (NpcManager.EsdInfo esdInfo in esds)
+            
+            foreach(var esdInfo in esds)
             {
                 Dictionary<string, ESD> result = compiler.Compile(esdInfo.py, templateEsd.Esd, allowAnyFilter);
 
@@ -64,29 +54,21 @@ namespace JortPob.Worker
 
                 Lort.TaskIterate();
             }
-
-            IsDone = true;
-            ExitCode = 0;
+            
+            return Unit.Default;
         }
 
-        public static void Go(List<NpcManager.EsdInfo> esds)
+        public Unit Go()
         {
             if (esds.Count == 0)
             {
-                return;
+                return Unit.Default;
             }
 
             Lort.Log($"Compiling {esds.Count} ESDs...", Lort.Type.Main);
             Lort.NewTask("Compiling ESDs", esds.Count);
 
-            EsdWorker worker = new(esds);
-
-            /* Wait for compilation to finish */
-            while (!worker.IsDone)
-            {
-                // wait...
-                Thread.Yield();
-            }
+            return Run();
         }
 
         private struct EsdDescriptor

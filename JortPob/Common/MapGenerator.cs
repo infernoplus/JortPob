@@ -340,7 +340,7 @@ namespace JortPob.Common
                 int zoomLevel = int.Parse(coord[..1]);
                 int x = int.Parse(coord.Substring(1, 2));
                 int y = int.Parse(coord.Substring(3, 2));
-
+                
                 tileFlags[zoomLevel, x, y] = int.Parse(node.Attributes[2].Value);
             }
         }

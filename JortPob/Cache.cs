@@ -11,6 +11,8 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 
 #nullable enable
 
@@ -312,13 +314,15 @@ namespace JortPob
                 MaterialContext? materialContext = new();
 
                 /* Convert models/textures for terrain */
-                nu.terrains = LandscapeWorker.Go(materialContext, esm);
+                LandscapeWorker landscapeWorker = new LandscapeWorker(materialContext, esm);
+                nu.terrains = landscapeWorker.Go();
 
                 /* Generate stuff for cutouts */
                 nu.cutouts = LiquidManager.GenerateCutouts(esm);
 
                 /* Convert models/textures for models */
-                nu.assets = FlverWorker.Go(materialContext, meshes);
+                FlverWorker flverWorker = new FlverWorker(materialContext, meshes);
+                nu.assets = flverWorker.Go();
 
                 /* Generate stuff for water */
                 nu.liquids = LiquidManager.GenerateLiquids(esm, materialContext);
@@ -418,7 +422,9 @@ namespace JortPob
                 {
                     collisions.Add(cutout.collision);
                 }
-                HkxWorker.Go(collisions);
+
+                HkxWorker hkxWorker = new HkxWorker(collisions);
+                hkxWorker.Go();
 
                 /* Assign resource ID numbers */
                 int nextM = 0, nextA = 0, nextO = 5000;

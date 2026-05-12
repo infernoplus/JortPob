@@ -1,12 +1,16 @@
 ﻿using Microsoft.Scripting.Utils;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 /* This exists for me to test if full voice acting will work properly before we get voice actors involved */
 namespace JortPob.Common
@@ -117,6 +121,164 @@ namespace JortPob.Common
 
             // Return wem path
             return wemPath;
+        }
+
+        public record GenerateAltEntry(
+            Dialog.DialogRecord Dialog,
+            Dialog.DialogInfoRecord Info,
+            string Line,
+            string HashName,
+            CharacterContent Npc
+        )
+        {
+            public string GetLineDir() =>
+                Override.CheckCustomVoice(Npc.id)
+                    ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), Npc.id, Dialog.id.ToString(), HashName)
+                    : Npc.race == CharacterContent.Race.Creature
+                        ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), Npc.id, Dialog.id.ToString(), HashName)
+                        : Path.Combine(Const.CACHE_PATH, "dialog", Npc.race.ToString(), Npc.sex.ToString(), Dialog.id.ToString(), HashName);
+            
+            public string WemPath => Path.Combine(GetLineDir(), $"{HashName}.wem");
+            public bool WemExists => File.Exists(WemPath);
+        } 
+        
+        public static List<string> GenerateAltBatch(List<GenerateAltEntry> entries) 
+        { 
+            string batchDir = Path.Combine(Const.CACHE_PATH, "batch_temp");
+            
+            if (Directory.Exists(batchDir))
+                Directory.Delete(batchDir, recursive: true);
+
+            Directory.CreateDirectory(batchDir);
+
+            string wwiseConsolePath = Path.Combine(Const.WWISE_PATH, "WwiseConsole.exe");
+            string projectPath = Path.Combine(Const.CACHE_PATH, "wwise", "wwise.wproj");
+            string batchXmlPath = Path.Combine(batchDir, "batch.wsources");
+
+            try
+            {
+                // 1. Generate all WAVs in parallel
+
+                var allEntries = entries.Where(e => !e.WemExists).ToList();
+                var uniqueHashes = allEntries.GroupBy(e => e.HashName).Select(g => g.First()).ToList();
+                
+                Lort.NewTask("Generating TTS", uniqueHashes.Count(e => !e.WemExists));
+
+                FLiteWrapper.FliteInit();
+                
+                Parallel.ForEach(uniqueHashes,
+                    new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                    entry =>
+                    {
+                        bool useCustom = Override.CheckCustomVoice(entry.Npc.id);
+                        bool isCreature = entry.Npc.race == CharacterContent.Race.Creature;
+                        
+                        string safeText;
+                        if (useCustom || isCreature) { safeText = MakeSafe($"{entry.Npc.id} says {entry.Line}"); }
+                        else { safeText = MakeSafe($"{entry.Npc.race.ToString()} says {entry.Line}"); }
+                        
+                        string voice = entry.Npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
+                        
+                        FLiteWrapper.Synthesize(safeText, voice,
+                            Path.Combine(batchDir, $"{entry.HashName}.wav"));
+                        
+                        if (!File.Exists(Path.Combine(batchDir, $"{entry.HashName}.wav")))
+                            Lort.Log($"FLite produced no output for: {entry.HashName}", Lort.Type.Debug);
+
+                        Lort.TaskIterate();
+                    });
+                
+                Thread.Sleep(200);
+                
+                var needsConversion = uniqueHashes
+                    .Where(e => !e.WemExists && File.Exists(Path.Combine(batchDir, $"{e.HashName}.wav")))
+                    .ToList();
+                
+                int wwisePass = 0;
+                const int maxPasses = 20;
+                const int maxBatchSize = 1000; // wwise can handle about this many in a batch before it starts to not like me...
+                
+                Lort.NewTask("WWISE Batch PASS", maxPasses);
+                
+                while (needsConversion.Any() && wwisePass < maxPasses)
+                {
+                    wwisePass++;
+                    Lort.Log($"PASS: {wwisePass}, Files to convert: {needsConversion.Count}", Lort.Type.Main);
+                    
+                    foreach(GenerateAltEntry[] batch in needsConversion.Chunk(maxBatchSize))
+                    {
+                        string sources = string.Join("\n    ", batch.Select(e =>
+                            $"<Source Path=\"{Path.Combine(batchDir, e.HashName)}.wav\" Conversion=\"Vorbis Quality High\" />"));
+
+                        string xmlRaw = $"""
+                                         <?xml version='1.0' encoding='UTF-8'?>
+                                         <ExternalSourcesList SchemaVersion="1" Root=".">
+                                             {sources}
+                                         </ExternalSourcesList>
+                                         """;
+
+                        File.WriteAllText(batchXmlPath, xmlRaw);
+
+                        // 3. Single WwiseConsole call
+                        ProcessStartInfo convertInfo = new(wwiseConsolePath)
+                        {
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            WorkingDirectory = batchDir,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        
+                        convertInfo.ArgumentList.AddRange([
+                            "convert-external-source",
+                            projectPath,
+                            "--source-file", batchXmlPath,
+                            "--output", "Windows",
+                            batchDir
+                        ]);
+                        
+                        Utility.ExecuteProcess(convertInfo, -1); // wait until finished large batches could take a bit and 15 seconds is too short
+                        
+                        foreach (var entry in batch)
+                        {
+                            string batchWem = Path.Combine(batchDir, $"{entry.HashName}.wem");
+                            if (!File.Exists(batchWem))
+                            {
+                                Lort.Log($"WEM not found after conversion: {entry.HashName}", Lort.Type.Debug);
+                                continue;
+                            }
+
+                            foreach (var item in entries.Where(e => e.HashName == entry.HashName))
+                            {
+                                Directory.CreateDirectory(item.GetLineDir());
+                                File.Copy(batchWem, item.WemPath, true);
+                            }
+                            File.Delete(batchWem);
+                        }
+                    }
+                    
+                    needsConversion = needsConversion.Where(e => !e.WemExists).ToList();
+                    
+                    if(needsConversion.Any())
+                        Lort.Log($"Remaining:  {needsConversion.Count}", Lort.Type.Main);
+                    
+                    Lort.TaskIterate();
+                }
+                
+                if(needsConversion.Any())
+                    Lort.Log($"Failed to convert: {needsConversion.Count}",  Lort.Type.Main);
+                
+                Lort.Log($"Your Audio Files have been Jortted Sucessfully!!", Lort.Type.Main);
+                
+                // 5. Return all wem paths
+                return entries.Select(e => e.WemPath).ToList();
+            }
+            finally
+            {
+                FLiteWrapper.Cleanup();
+                if (Directory.Exists(batchDir))
+                    Directory.Delete(batchDir, recursive: true);
+            }
         }
 
         /* Generate TTS of dialog via flite and convert to WEM */
@@ -232,7 +394,7 @@ namespace JortPob.Common
             // Should be unreachable if the File.Exists check above is correct, but included for completeness.
             return wemPath;
         }
-
+        
         private static readonly Regex AnsiRegex =
             new Regex("\u001b\\[[\\d;]*[A-HJ-NP-Zf-m]?", RegexOptions.Compiled);
 

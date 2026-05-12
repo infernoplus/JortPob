@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using WitchyFormats;
 
 namespace JortPob
@@ -86,8 +88,8 @@ namespace JortPob
         public readonly Cache cache;
         public readonly TextManager textManager;
 
-        public readonly Dictionary<ParamType, FsParam> param;
-        public readonly LiveParam extendedTalkParam;
+        public Dictionary<ParamType, FsParam> param;
+        public LiveParam extendedTalkParam;
 
         public Dictionary<string, int> itemActionButtons; // string is the text of the button prompt, int is the row id
 
@@ -107,7 +109,11 @@ namespace JortPob
             nextWeatherLotParamId = 500000000;
 
             itemActionButtons = new();
+        }
 
+        public void Build()
+        {
+            
             SoulsFormats.BND4 paramBnd = RegulationDecryptor.DecryptERRegulation(Utility.ResourcePath(@"misc\regulation.bin"));
             string[] files = Directory.GetFiles(Utility.ResourcePath(@"misc\paramdefs"));
 
@@ -127,8 +133,10 @@ namespace JortPob
                     continue;
                 }
             }
-
-            param = ParamWorker.Go(paramBnd, paramdefs);
+            
+            ParamWorker paramWorker = new ParamWorker(paramBnd, paramdefs);
+            
+            param = paramWorker.Go();
 
             /* Clear out most of the talk params to make room for our custom ones */
             /* Just keeping some important ones for opening cutscene */
@@ -266,6 +274,7 @@ namespace JortPob
 
             GC.Collect(); // maybe fixes a bug with fsparam. 80% sure
         }
+        
 
         /* Adds row or replaces an existing row with a matching ID */
         public void AddOrReplaceRow(FsParam param, FsParam.Row row)
