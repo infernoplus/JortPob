@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using HKLib.hk2018.hkaiCollisionAvoidance;
 
 /* This exists for me to test if full voice acting will work properly before we get voice actors involved */
 namespace JortPob.Common
@@ -122,26 +123,51 @@ namespace JortPob.Common
             // Return wem path
             return wemPath;
         }
-
+        
+        // Helper record for storing dialog creation data
         public record GenerateAltEntry(
             Dialog.DialogRecord Dialog,
             Dialog.DialogInfoRecord Info,
             string Line,
             string HashName,
-            CharacterContent Npc
+            CharacterContent Npc,
+            bool OverrideSex = false,
+            bool AltVarient = false
         )
         {
-            public string GetLineDir() =>
-                Override.CheckCustomVoice(Npc.id)
-                    ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), Npc.id, Dialog.id.ToString(), HashName)
-                    : Npc.race == CharacterContent.Race.Creature
-                        ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), Npc.id, Dialog.id.ToString(), HashName)
-                        : Path.Combine(Const.CACHE_PATH, "dialog", Npc.race.ToString(), Npc.sex.ToString(), Dialog.id.ToString(), HashName);
+            public bool AltVarient { get; } = AltVarient;
             
-            public string WemPath => Path.Combine(GetLineDir(), $"{HashName}.wem");
-            public bool WemExists => File.Exists(WemPath);
+            public string GetLineDir()
+            {
+                string baseHash = AltVarient ? HashName[..^4] : HashName;
+
+                if (Override.CheckCustomVoice(Npc.id))
+                    return Path.Combine(Const.CACHE_PATH, "dialog", "Custom", Npc.id, Dialog.id.ToString(), baseHash);
+
+                if (Npc.race == CharacterContent.Race.Creature)
+                    return Path.Combine(Const.CACHE_PATH, "dialog", "Creature", Npc.id, Dialog.id.ToString(), baseHash);
+
+                // Normal case
+                string sexFolder = OverrideSex ? "Female" : Npc.sex.ToString();
+
+                return Path.Combine(Const.CACHE_PATH, "dialog", Npc.race.ToString(), sexFolder, Dialog.id.ToString(), baseHash);
+            }
+
+            public string WemPath()
+            {
+                string hashBase = AltVarient ? HashName[..^4] : HashName; 
+                return Path.Combine(GetLineDir(), $"{hashBase}.wem");
+            }
+                
+            public bool WemExists => File.Exists(WemPath());
+            
         } 
         
+        /// <summary>
+        /// Batch process alt dialog entries
+        /// </summary>
+        /// <param name="entries"></param>
+        /// <returns></returns>
         public static List<string> GenerateAltBatch(List<GenerateAltEntry> entries) 
         { 
             string batchDir = Path.Combine(Const.CACHE_PATH, "batch_temp");
@@ -157,14 +183,17 @@ namespace JortPob.Common
 
             try
             {
-                // 1. Generate all WAVs in parallel
-
+                // Since NPCs can share common dialog we have to adjust for batch generation
                 var allEntries = entries.Where(e => !e.WemExists).ToList();
                 var uniqueHashes = allEntries.GroupBy(e => e.HashName).Select(g => g.First()).ToList();
                 
+                var entryLookup = entries.GroupBy(e => e.HashName).ToDictionary(k => k.Key, k=> k.ToList());
+                
                 Lort.NewTask("Generating TTS", uniqueHashes.Count(e => !e.WemExists));
 
-                FLiteWrapper.FliteInit();
+                FLiteWrapper.FliteInit(); // init flite synth 
+                
+                ConcurrentBag<GenerateAltEntry> altTTS = new();
                 
                 Parallel.ForEach(uniqueHashes,
                     new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount },
@@ -174,28 +203,54 @@ namespace JortPob.Common
                         bool isCreature = entry.Npc.race == CharacterContent.Race.Creature;
                         
                         string safeText;
-                        if (useCustom || isCreature) { safeText = MakeSafe($"{entry.Npc.id} says {entry.Line}"); }
-                        else { safeText = MakeSafe($"{entry.Npc.race.ToString()} says {entry.Line}"); }
+                        if (useCustom || isCreature)
+                        {
+                            safeText = MakeSafe($"{entry.Npc.id} says {entry.Line}");
+                        }
+                        else
+                        {
+                            safeText = MakeSafe(entry.Line); // Generic lines say the wrong race so removed...
+                        } 
                         
                         string voice = entry.Npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
                         
                         FLiteWrapper.Synthesize(safeText, voice,
                             Path.Combine(batchDir, $"{entry.HashName}.wav"));
                         
+                        if (entry.Info.sex == CharacterContent.Sex.Any)
+                        {
+                            bool npcExistsForDialog = entryLookup.GetValueOrDefault(entry.HashName, []).Any(e => e.Npc.sex == CharacterContent.Sex.Female);
+                            
+                            // Synthesize female variant of generic line
+                            if (npcExistsForDialog)
+                            {
+                                // create a female tts file for the dialog
+                                FLiteWrapper.Synthesize(safeText, "slt",
+                                    Path.Combine(batchDir, $"{entry.HashName}_slt.wav"));
+
+                                if (!File.Exists(Path.Combine(batchDir, $"{entry.HashName}_slt.wav")))
+                                    Lort.Log($"FLite produced no output for generic alt: {entry.HashName}",
+                                        Lort.Type.Debug);
+
+                                altTTS.Add(new GenerateAltEntry(entry.Dialog, entry.Info, entry.Line,
+                                    $"{entry.HashName}_slt", entry.Npc, true, true));
+                            }
+                        }
+                        
                         if (!File.Exists(Path.Combine(batchDir, $"{entry.HashName}.wav")))
-                            Lort.Log($"FLite produced no output for: {entry.HashName}", Lort.Type.Debug);
+                            Lort.Log($"FLite produced no output for: {entry.HashName}_slt", Lort.Type.Debug);
 
                         Lort.TaskIterate();
                     });
                 
-                Thread.Sleep(200);
+                uniqueHashes.AddRange(altTTS.ToList());
                 
                 var needsConversion = uniqueHashes
                     .Where(e => !e.WemExists && File.Exists(Path.Combine(batchDir, $"{e.HashName}.wav")))
                     .ToList();
                 
                 int wwisePass = 0;
-                const int maxPasses = 20;
+                const int maxPasses = 10;
                 const int maxBatchSize = 1000; // wwise can handle about this many in a batch before it starts to not like me...
                 
                 Lort.NewTask("WWISE Batch PASS", maxPasses);
@@ -218,8 +273,7 @@ namespace JortPob.Common
                                          """;
 
                         File.WriteAllText(batchXmlPath, xmlRaw);
-
-                        // 3. Single WwiseConsole call
+                        
                         ProcessStartInfo convertInfo = new(wwiseConsolePath)
                         {
                             RedirectStandardOutput = true,
@@ -242,25 +296,77 @@ namespace JortPob.Common
                         foreach (var entry in batch)
                         {
                             string batchWem = Path.Combine(batchDir, $"{entry.HashName}.wem");
+
                             if (!File.Exists(batchWem))
                             {
                                 Lort.Log($"WEM not found after conversion: {entry.HashName}", Lort.Type.Debug);
                                 continue;
                             }
+                            
+                            //check if alt exists and if we should copy the female alt sound
+                            bool altFound = entry.AltVarient;
+                            string hashBase = altFound ? entry.HashName[..^4] : entry.HashName; // get base name 
 
-                            foreach (var item in entries.Where(e => e.HashName == entry.HashName))
+                            var npcsWithDialog = entryLookup.GetValueOrDefault(hashBase, []);
+                            
+                            foreach (var item in npcsWithDialog)
                             {
-                                Directory.CreateDirectory(item.GetLineDir());
-                                File.Copy(batchWem, item.WemPath, true);
+                                bool shouldCopy = false;
+
+                                if (altFound)
+                                {
+                                    // Female alt found should copy
+                                    shouldCopy = (item.Npc.sex == CharacterContent.Sex.Female);
+                                }
+                                else
+                                {
+                                    // If the dialog is generic check if the npc can have the file
+                                    if (item.Info.sex == CharacterContent.Sex.Any)
+                                    {
+                                        shouldCopy = (item.Npc.sex == CharacterContent.Sex.Male || 
+                                                      item.Npc.sex == CharacterContent.Sex.Any);
+                                    }
+                                    else
+                                    {
+                                        //check if the sexed dialog matches the npcs sex 
+                                        shouldCopy = (item.Npc.sex == item.Info.sex);
+                                    }
+                                }  
+                                
+                                if (shouldCopy)
+                                {
+                                    Directory.CreateDirectory(item.GetLineDir());
+                                    try
+                                    {
+                                        File.Copy(batchWem, item.WemPath(), true);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Lort.Log($"Copy failed for {item.GetLineDir()}: {e.Message}", Lort.Type.Debug);
+                                    }
+                                }
                             }
                             File.Delete(batchWem);
                         }
                     }
                     
-                    needsConversion = needsConversion.Where(e => !e.WemExists).ToList();
+                    // update files that still need to be converted. Shouldn't happen but if wwise times out a batch could fail
+                    needsConversion = uniqueHashes
+                        .Where(e =>
+                        {
+                            if (e.AltVarient)
+                            {
+                                string baseHash = e.HashName[..^4];
+                                return entryLookup.GetValueOrDefault(baseHash, [])
+                                    .Where(x => x.Npc.sex == CharacterContent.Sex.Female)
+                                    .Any(x => !x.WemExists);
+                            }
+                            return !e.WemExists && File.Exists(Path.Combine(batchDir, $"{e.HashName}.wav"));
+                        })
+                        .ToList();
                     
                     if(needsConversion.Any())
-                        Lort.Log($"Remaining:  {needsConversion.Count}", Lort.Type.Main);
+                        Lort.Log($"Remaining:  {needsConversion.Count}", Lort.Type.Main); // Uh-oh stinky
                     
                     Lort.TaskIterate();
                 }
@@ -269,130 +375,16 @@ namespace JortPob.Common
                     Lort.Log($"Failed to convert: {needsConversion.Count}",  Lort.Type.Main);
                 
                 Lort.Log($"Your Audio Files have been Jortted Sucessfully!!", Lort.Type.Main);
-                
-                // 5. Return all wem paths
-                return entries.Select(e => e.WemPath).ToList();
+
+                return entries.Select(e => e.WemPath()).ToList();
             }
             finally
             {
-                FLiteWrapper.Cleanup();
+                //regardless of what happens clean up flite and delete batch directory
+                FLiteWrapper.Cleanup(); 
                 if (Directory.Exists(batchDir))
                     Directory.Delete(batchDir, recursive: true);
             }
-        }
-
-        /* Generate TTS of dialog via flite and convert to WEM */
-        public static string GenerateAlt(Dialog.DialogRecord dialog, Dialog.DialogInfoRecord info, string line, string hashName, CharacterContent npc)
-        {
-            // Define paths
-            bool useCustom = Override.CheckCustomVoice(npc.id);
-            bool isCreature = npc.race == CharacterContent.Race.Creature;
-
-            string lineDir;
-            if (useCustom) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), npc.id, dialog.id.ToString(), hashName); }
-            else if(isCreature) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), npc.id, dialog.id.ToString(), hashName); }
-            else { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", npc.race.ToString(), npc.sex.ToString(), dialog.id.ToString(), hashName); }
-
-            string wavPath = Path.Combine(lineDir, $"{hashName}.wav");
-            string wemPath = Path.Combine(lineDir, $"{hashName}.wem");
-            string flitePath = Path.Combine(Environment.CurrentDirectory, "Resources", "tts", "flite.exe");
-
-            string safeText;
-            if (useCustom || isCreature) { safeText = MakeSafe($"{npc.id} says {line}"); }
-            else { safeText = MakeSafe($"{npc.race.ToString()} says {line}"); }
-
-            // Use a loop to handle retries
-            for (int retry = 0; retry < Const.SAM_MAX_RETRY; retry++)
-            {
-                if (File.Exists(wemPath))
-                {
-                    // Audio file already exists in cache, no need to retry
-                    return wemPath;
-                }
-
-                try
-                {
-                    // 1. Setup Environment
-                    if (!Directory.Exists(lineDir))
-                    {
-                        Directory.CreateDirectory(lineDir);
-                    }
-
-                    // 2. Generate WAV (Text-to-Speech)
-                    // string ssmlLine = $"<speak>{line}<break time='500ms'/></speak>";
-                    string voice = npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
-                    string args = $"-t \"{safeText}\" -voice {voice} \"{wavPath}\"";
-
-                    ProcessStartInfo fliteStartInfo = new(flitePath)
-                    {
-                        Arguments = args,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true, // Added for better error capture
-                        WorkingDirectory = lineDir,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    // The helper method handles the execution, timeout, kill, and exit code check
-                    Utility.ExecuteProcess(fliteStartInfo);
-
-                    // --- 3. Convert WAV to WEM (Wwise Console) ---
-                    
-                    string wwiseConsolePath = Path.Combine(Const.WWISE_PATH, "WwiseConsole.exe");
-                    string xmlName = $"{hashName}.wsources";
-                    string xmlPath = Path.Combine(lineDir, xmlName);
-                    string projectDir = Path.Combine(Const.CACHE_PATH, "wwise");
-                    string projectPath = Path.Combine(projectDir, "wwise.wproj");
-                    
-                    // Create XML file
-                    string xmlRaw = $"""
-                        <?xml version='1.0' encoding='UTF-8'?>
-                        <ExternalSourcesList SchemaVersion="1" Root="{lineDir}"><Source Path="{hashName}.wav" Conversion="Vorbis Quality High" /></ExternalSourcesList>
-                        """;
-                    File.WriteAllText(xmlPath, xmlRaw);
-
-                    // Convert wav to wem
-                    ProcessStartInfo convertInfo = new(wwiseConsolePath)
-                    {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        WorkingDirectory = lineDir,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    string xmlRelative;
-                    if (useCustom) { xmlRelative = Path.Combine("..", "dialog", CharacterContent.Race.Custom.ToString(), npc.id, dialog.id.ToString(), hashName, xmlName); }
-                    else if (isCreature) { xmlRelative = Path.Combine("..", "dialog", CharacterContent.Race.Creature.ToString(), npc.id, dialog.id.ToString(), hashName, xmlName); }
-                    else { xmlRelative = Path.Combine("..", "dialog", npc.race.ToString(), npc.sex.ToString(), dialog.id.ToString(), hashName, xmlName); }
-                    convertInfo.ArgumentList.AddRange(["convert-external-source", $"\"{projectPath}\"", "--source-file", xmlRelative, "--output", "Windows", $"\"{lineDir}\""]);
-                    Utility.ExecuteProcess(convertInfo);
-
-                    // If we reach here, both processes completed successfully (ExitCode 0)
-                    if (File.Exists(wemPath))
-                    {
-                        return wemPath;
-                    }
-                    
-                    // If processes succeeded but the file isn't there, something is wrong, we retry
-                    throw new FileNotFoundException($"WEM file was not found after successful conversion: {wemPath}");
-                }
-                catch (Exception ex)
-                {
-                    // Keep retrying. Don't spam log after every failed generation as it's bloat.
-                    // If we fail up to MAX_RETRY then we throw an exception and print log.
-                }
-            }
-
-            // Final check after all retries
-            if (!File.Exists(wemPath))
-            {
-                Lort.Log($"Failed to generate line {wemPath}. With text <{safeText}> -- despite {Const.SAM_MAX_RETRY} retry attempts.", Lort.Type.Debug);
-                throw new($"Failed to generate line {wemPath}. With text <{safeText}> -- despite {Const.SAM_MAX_RETRY} retry attempts.");
-            }
-
-            // Should be unreachable if the File.Exists check above is correct, but included for completeness.
-            return wemPath;
         }
         
         private static readonly Regex AnsiRegex =

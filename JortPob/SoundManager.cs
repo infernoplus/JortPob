@@ -170,7 +170,7 @@ namespace JortPob
 
             Task mainSoundBank = Task.Run(() =>
             {
-                Lort.Log("Writing Main Bank this will take a while", Lort.Type.Main);
+                Lort.Log("Writing Main Bank this will take a while", Lort.Type.Debug);
                 main.Write();
                 Lort.Log("Main bank written",  Lort.Type.Debug);
                 Lort.TaskIterate();
@@ -203,7 +203,7 @@ namespace JortPob
 
                     if (File.Exists(bnkPath)) { File.Delete(bnkPath); }
                     File.Move(bnkRebuiltPath, bnkPath);
-                    Lort.Log("Other bank written",  Lort.Type.Debug);
+                    Lort.Log($"{bankInfo.race.ToString()} bank written",  Lort.Type.Debug);
                     Lort.TaskIterate();
                 });
             });

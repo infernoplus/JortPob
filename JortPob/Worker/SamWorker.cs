@@ -24,15 +24,9 @@ namespace JortPob.Worker
             {
                files.Add(new(data.dialog, data.info, data.line, data.hashName, data.npc)); 
             }
+            
             SAM.GenerateAltBatch(files);
-            // Heavy overhead with wwise console being started for each instance so in this case limiting parallelism is needed
-            /*
-            Parallel.ForEach(datas, new ParallelOptions{MaxDegreeOfParallelism = 4}, data =>
-            {
-                SAM.GenerateAlt(data.dialog, data.info, data.line, data.hashName, data.npc);
-                Lort.TaskIterate();
-            });
-            */
+            
             return Unit.Default;
         }
 
