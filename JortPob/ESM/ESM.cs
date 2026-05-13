@@ -7,10 +7,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Numerics;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
 using static JortPob.Dialog;
 
 namespace JortPob

@@ -1,17 +1,15 @@
 ﻿using JortPob.Common;
 using JortPob.Model;
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Reactive;
-using System.Threading;
 using System.Threading.Tasks;
+using HKLib.Reflection.hk2018;
 
 namespace JortPob.Worker
 {
-    public class HkxWorker(List<CollisionInfo> collisions) : IWorker<Unit>
+    public class HkxWorker(List<CollisionInfo> collisions, HavokTypeRegistry registry) : IWorker<Unit>
     {
         public Unit Go()
         {
@@ -30,7 +28,7 @@ namespace JortPob.Worker
             
             Parallel.ForEach(uniqueCollisions, uc =>
             {
-                ModelConverter.OBJtoHKX(Path.Combine(Const.CACHE_PATH, uc.Item1), Path.Combine(Const.CACHE_PATH, uc.Item2));
+                ModelConverter.OBJtoHKX(Path.Combine(Const.CACHE_PATH, uc.Item1), Path.Combine(Const.CACHE_PATH, uc.Item2), registry);
                 Lort.TaskIterate();
             });
 

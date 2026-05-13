@@ -3,13 +3,11 @@ using SoulsFormats;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel.Design;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Xml;
-using TES3;
 
 namespace JortPob.Model
 {

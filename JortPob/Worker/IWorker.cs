@@ -1,7 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace JortPob.Worker
+﻿namespace JortPob.Worker
 { 
     public interface IWorker<T>
     {

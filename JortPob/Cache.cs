@@ -11,8 +11,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
+using HKLib.Reflection.hk2018;
 
 #nullable enable
 
@@ -246,7 +245,7 @@ namespace JortPob
         }
 
         /* Big stupid load function */
-        public static Cache Load(ESM esm)
+        public static Cache Load(ESM esm, HavokTypeRegistry registry)
         {
             string manifestPath = Path.Combine(Const.CACHE_PATH, "cache.json");
 
@@ -423,7 +422,7 @@ namespace JortPob
                     collisions.Add(cutout.collision);
                 }
 
-                HkxWorker hkxWorker = new HkxWorker(collisions);
+                HkxWorker hkxWorker = new HkxWorker(collisions, registry);
                 hkxWorker.Go();
 
                 /* Assign resource ID numbers */

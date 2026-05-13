@@ -3,7 +3,6 @@ using SharpAssimp;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using static IronPython.Modules._ast;
 
 namespace JortPob.Model
 {

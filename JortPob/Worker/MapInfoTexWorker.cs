@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
 using JortPob.Common;
 using SoulsFormats;

@@ -1,6 +1,5 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
-using Microsoft.Scripting.Utils;
 using PortJob;
 using SoulsFormats;
 using System;
@@ -8,9 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using static SoulsFormats.PARAM;
 
 namespace JortPob
 {

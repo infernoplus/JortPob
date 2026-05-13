@@ -1,5 +1,4 @@
 ﻿using JortPob.Common;
-using SoulsFormats.Formats.Morpheme.NSA;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using HKLib.Reflection.hk2018;
 using static JortPob.Scripts.Script;
 
 namespace JortPob
@@ -21,6 +22,9 @@ namespace JortPob
             Override.Initialize(); // load all override jsons
             Utility.InitSRGBCache();
             Oodler.Initialize();
+            
+            string toolsDir = $"{AppDomain.CurrentDomain.BaseDirectory}Resources\\tools\\ER_OBJ2HKX\\";
+            HavokTypeRegistry registry = HavokTypeRegistry.Load(Path.Combine(toolsDir, "HavokTypeRegistry20180100.xml"));
 
 
             /* Loading stuff */
@@ -30,8 +34,7 @@ namespace JortPob
             
             esm.BuildCells(); // Has to be built after constructor in the future we need to move processing out of constructors not what they should be doing
             
-            Cache cache = Cache.Load(esm)
-                ;                                                  // Load existing cache (FAST!) or generate a new one (SLOW!)
+            Cache cache = Cache.Load(esm, registry);                                                  // Load existing cache (FAST!) or generate a new one (SLOW!)
             TextManager text = new();                                                      // Manages FMG text files
             
             MenuTextureManager texManager = new(esm);                                     // Manages menu textures for things like inventory icons and loading screens
@@ -1096,7 +1099,7 @@ namespace JortPob
                     }
                 }
 
-                NavWorker navWorker = new NavWorker(objs);
+                NavWorker navWorker = new NavWorker(objs, registry);
                 navWorker.Go();
 
                 /* After all the nav conversions are finshed we can now do nvas and nvbnds */

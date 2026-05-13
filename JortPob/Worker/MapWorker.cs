@@ -3,8 +3,6 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Reactive;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace JortPob.Worker
 {

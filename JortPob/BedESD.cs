@@ -1,5 +1,4 @@
 ﻿using JortPob.Scripts;
-using System.Collections.Generic;
 using System.IO;
 
 namespace JortPob

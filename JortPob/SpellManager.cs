@@ -1,12 +1,6 @@
 ﻿using JortPob.Common;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json.Nodes;
-using System.Threading.Tasks;
-using WitchyFormats;
-using static JortPob.ItemManager;
 
 namespace JortPob
 {

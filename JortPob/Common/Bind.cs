@@ -1,6 +1,4 @@
-﻿using JortPob.Worker;
-using SoulsFormats;
-using System;
+﻿using SoulsFormats;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;

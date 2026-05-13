@@ -9,9 +9,7 @@ using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
 using System.Threading.Tasks;
-using HKLib.hk2018.hkaiCollisionAvoidance;
 
 /* This exists for me to test if full voice acting will work properly before we get voice actors involved */
 namespace JortPob.Common
@@ -306,7 +304,8 @@ namespace JortPob.Common
                             //check if alt exists and if we should copy the female alt sound
                             bool altFound = entry.AltVarient;
                             string hashBase = altFound ? entry.HashName[..^4] : entry.HashName; // get base name 
-
+                            
+                            // Get all npcs that have this dialog
                             var npcsWithDialog = entryLookup.GetValueOrDefault(hashBase, []);
                             
                             foreach (var item in npcsWithDialog)

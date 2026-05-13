@@ -7,7 +7,6 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Xml;
 
 namespace JortPob.Common

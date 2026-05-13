@@ -1,10 +1,7 @@
-﻿using HKX2;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Threading.Tasks;
-using System.Linq;
-using System.Threading;
 
 namespace JortPob.Common
 {

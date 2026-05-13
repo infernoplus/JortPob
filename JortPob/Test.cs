@@ -1,11 +1,9 @@
 ﻿using JortPob.Common;
 using JortPob.Model;
-using JortPob.Worker;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Threading;
 using System.IO;
 using static JortPob.LiquidManager;
 

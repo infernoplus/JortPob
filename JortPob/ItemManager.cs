@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text.Json.Nodes;
 using WitchyFormats;
-using static IronPython.Modules._ast;
 
 namespace JortPob
 {

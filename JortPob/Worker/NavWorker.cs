@@ -1,17 +1,15 @@
 ﻿using JortPob.Common;
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive;
-using System.Threading;
 using System.Threading.Tasks;
 using ERNavmeshGenCS;
+using HKLib.Reflection.hk2018;
 
 namespace JortPob.Worker
 {
-    public class NavWorker(List<string> objs) : IWorker<Unit>
+    public class NavWorker(List<string> objs, HavokTypeRegistry registry) : IWorker<Unit>
     {
         public Unit Go()
         {
@@ -23,6 +21,7 @@ namespace JortPob.Worker
 
         private Unit Run()
         {
+            
             /* Write navmesh settings */
             hkaiNavMeshGenerationSnapshot nNavmeshSettings = HkxUtility.GetDefaultNavmeshGenerationSnapshot();
             hkaiNavMeshGenerationSnapshot oNavmeshSettings = HkxUtility.GetLodNavmeshGenerationSnapshot();
@@ -39,7 +38,7 @@ namespace JortPob.Worker
                     Lort.TaskIterate();
                     return;
                 }
-                Model.ModelConverter.OBJtoHKX(obj, hkxPath);
+                Model.ModelConverter.OBJtoHKX(obj, hkxPath, registry);
                 Lort.TaskIterate();
             });
 

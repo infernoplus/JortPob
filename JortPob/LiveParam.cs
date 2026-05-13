@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using SoulsFormats;
 using StudioUtils;
-using WitchyFormats;
 using PARAMDEF = SoulsFormats.PARAMDEF;
 
 namespace FSParam
