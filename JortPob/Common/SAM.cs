@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Speech.AudioFormat;
@@ -123,22 +124,52 @@ namespace JortPob.Common
         }
         
         // Helper record for storing dialog creation data
-        public record GenerateAltEntry(
-            Dialog.DialogRecord Dialog,
-            Dialog.DialogInfoRecord Info,
-            string Line,
-            string HashName,
-            CharacterContent Npc,
-            bool OverrideSex = false,
-            bool AltVarient = false
-        )
+        public record GenerateAltEntry
         {
-            public bool AltVarient { get; } = AltVarient;
+            public required Dialog.DialogRecord Dialog;
+
+            public required Dialog.DialogInfoRecord Info;
+
+            public required string Line;
+
+            public required string HashName;
+            
+            public required CharacterContent Npc;
+
+            public bool OverrideSex;
+
+            public bool AltVariant;
+
+            public string tempHashName;
+            
+            [SetsRequiredMembers]
+            public GenerateAltEntry(
+                Dialog.DialogRecord Dialog,
+                Dialog.DialogInfoRecord Info,
+                string Line,
+                string HashName,
+                CharacterContent Npc,
+                bool OverrideSex = false,
+                bool AltVariant = false
+            )
+            {
+                this.Dialog = Dialog;
+                this.Info = Info;
+                this.Line = Line;
+                this.HashName = HashName;
+                this.Npc = Npc;
+                this.OverrideSex = OverrideSex;
+                this.AltVariant =  AltVariant;
+                
+                int lineIter = HashName.IndexOf('+');
+                tempHashName = HashName[..lineIter] + Info.sex.ToString() +  HashName[lineIter..]; // Temp file name for batch processing by dialog sex type
+                
+            }
             
             public string GetLineDir()
             {
-                string baseHash = AltVarient ? HashName[..^4] : HashName;
-
+                string baseHash = AltVariant ? HashName[..^4] : HashName;
+                
                 if (Override.CheckCustomVoice(Npc.id))
                     return Path.Combine(Const.CACHE_PATH, "dialog", "Custom", Npc.id, Dialog.id.ToString(), baseHash);
 
@@ -153,8 +184,9 @@ namespace JortPob.Common
 
             public string WemPath()
             {
-                string hashBase = AltVarient ? HashName[..^4] : HashName; 
-                return Path.Combine(GetLineDir(), $"{hashBase}.wem");
+                string baseHash = AltVariant ? HashName[..^4] : HashName; 
+
+                return Path.Combine(GetLineDir(), $"{baseHash}.wem");
             }
                 
             public bool WemExists => File.Exists(WemPath());
@@ -183,6 +215,7 @@ namespace JortPob.Common
             {
                 // Since NPCs can share common dialog we have to adjust for batch generation
                 var allEntries = entries.Where(e => !e.WemExists).ToList();
+                
                 var uniqueHashes = allEntries.GroupBy(e => e.HashName).Select(g => g.First()).ToList();
                 
                 var entryLookup = entries.GroupBy(e => e.HashName).ToDictionary(k => k.Key, k=> k.ToList());
@@ -213,7 +246,7 @@ namespace JortPob.Common
                         string voice = entry.Npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
                         
                         FLiteWrapper.Synthesize(safeText, voice,
-                            Path.Combine(batchDir, $"{entry.HashName}.wav"));
+                            Path.Combine(batchDir, $"{entry.tempHashName}.wav"));
                         
                         if (entry.Info.sex == CharacterContent.Sex.Any)
                         {
@@ -224,10 +257,10 @@ namespace JortPob.Common
                             {
                                 // create a female tts file for the dialog
                                 FLiteWrapper.Synthesize(safeText, "slt",
-                                    Path.Combine(batchDir, $"{entry.HashName}_slt.wav"));
+                                    Path.Combine(batchDir, $"{entry.tempHashName}_slt.wav"));
 
-                                if (!File.Exists(Path.Combine(batchDir, $"{entry.HashName}_slt.wav")))
-                                    Lort.Log($"FLite produced no output for generic alt: {entry.HashName}",
+                                if (!File.Exists(Path.Combine(batchDir, $"{entry.tempHashName}_slt.wav")))
+                                    Lort.Log($"FLite produced no output for generic alt: {entry.tempHashName}",
                                         Lort.Type.Debug);
 
                                 altTTS.Add(new GenerateAltEntry(entry.Dialog, entry.Info, entry.Line,
@@ -235,8 +268,8 @@ namespace JortPob.Common
                             }
                         }
                         
-                        if (!File.Exists(Path.Combine(batchDir, $"{entry.HashName}.wav")))
-                            Lort.Log($"FLite produced no output for: {entry.HashName}_slt", Lort.Type.Debug);
+                        if (!File.Exists(Path.Combine(batchDir, $"{entry.tempHashName}.wav")))
+                            Lort.Log($"FLite produced no output for: {entry.tempHashName}", Lort.Type.Debug);
 
                         Lort.TaskIterate();
                     });
@@ -244,7 +277,7 @@ namespace JortPob.Common
                 uniqueHashes.AddRange(altTTS.ToList());
                 
                 var needsConversion = uniqueHashes
-                    .Where(e => !e.WemExists && File.Exists(Path.Combine(batchDir, $"{e.HashName}.wav")))
+                    .Where(e => !e.WemExists && File.Exists(Path.Combine(batchDir, $"{e.tempHashName}.wav")))
                     .ToList();
                 
                 int wwisePass = 0;
@@ -261,7 +294,7 @@ namespace JortPob.Common
                     foreach(GenerateAltEntry[] batch in needsConversion.Chunk(maxBatchSize))
                     {
                         string sources = string.Join("\n    ", batch.Select(e =>
-                            $"<Source Path=\"{Path.Combine(batchDir, e.HashName)}.wav\" Conversion=\"Vorbis Quality High\" />"));
+                            $"<Source Path=\"{Path.Combine(batchDir, e.tempHashName)}.wav\" Conversion=\"Vorbis Quality High\" />"));
 
                         string xmlRaw = $"""
                                          <?xml version='1.0' encoding='UTF-8'?>
@@ -293,19 +326,19 @@ namespace JortPob.Common
                         
                         foreach (var entry in batch)
                         {
-                            string batchWem = Path.Combine(batchDir, $"{entry.HashName}.wem");
-
+                            string batchWem = Path.Combine(batchDir, $"{entry.tempHashName}.wem"); // Get the converted temporary wem will be renamed when copied
+                            
                             if (!File.Exists(batchWem))
                             {
-                                Lort.Log($"WEM not found after conversion: {entry.HashName}", Lort.Type.Debug);
+                                Lort.Log($"WEM not found after conversion: {entry.tempHashName}", Lort.Type.Debug);
                                 continue;
                             }
                             
                             //check if alt exists and if we should copy the female alt sound
-                            bool altFound = entry.AltVarient;
+                            bool altFound = entry.AltVariant;
                             string hashBase = altFound ? entry.HashName[..^4] : entry.HashName; // get base name 
                             
-                            // Get all npcs that have this dialog
+                            // Get all npcs that use this dialog
                             var npcsWithDialog = entryLookup.GetValueOrDefault(hashBase, []);
                             
                             foreach (var item in npcsWithDialog)
@@ -353,7 +386,7 @@ namespace JortPob.Common
                     needsConversion = uniqueHashes
                         .Where(e =>
                         {
-                            if (e.AltVarient)
+                            if (e.AltVariant)
                             {
                                 string baseHash = e.HashName[..^4];
                                 return entryLookup.GetValueOrDefault(baseHash, [])
