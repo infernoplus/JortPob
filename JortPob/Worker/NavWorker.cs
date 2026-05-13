@@ -1,4 +1,5 @@
-﻿using JortPob.Common;
+﻿using System;
+using JortPob.Common;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -41,8 +42,8 @@ namespace JortPob.Worker
                 Model.ModelConverter.OBJtoHKX(obj, hkxPath, registry);
                 Lort.TaskIterate();
             });
-
-            Parallel.ForEach(objs, obj =>
+            
+            Parallel.ForEach(objs, new ParallelOptions{MaxDegreeOfParallelism = Environment.ProcessorCount / 2}, obj =>
             {
                 string hkxPath = Path.ChangeExtension(obj, ".hkx");
                 string nnavPath = Path.ChangeExtension(hkxPath, ".n.nav");
