@@ -41,88 +41,6 @@ namespace JortPob.Common
             }
         }
 
-        /* DO NOT USE */
-        public static string Generate(Dialog.DialogRecord dialog, Dialog.DialogInfoRecord info, string line, string hashName, NpcContent npc)
-        {
-            // Get the exact location this file will be in
-            bool useCustom = Override.CheckCustomVoice(npc.id);
-            bool isCreature = npc.race == CharacterContent.Race.Creature;
-
-            string lineDir;
-            if (useCustom) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), npc.id, dialog.id.ToString(), hashName); }
-            else if (isCreature) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), npc.id, dialog.id.ToString(), hashName); }
-            else { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", npc.race.ToString(), npc.sex.ToString(), dialog.id.ToString(), hashName); }
-
-            string wavPath = $"{lineDir}{hashName}.wav";
-            string wemPath = $"{lineDir}{hashName}.wem";
-
-            for (int retry = 0; retry < Const.SAM_MAX_RETRY; retry++)
-            {
-                try
-                {
-                    // Create synth
-                    using (SpeechSynthesizer synthesizer = new())
-                    {
-                        // Check if this audio file exists in the cache already // @TODO: ideally we generate a voice cache later but guh w/e filesystem check for now
-                        if (System.IO.File.Exists(wemPath)) { return wemPath; }
-
-                        if (npc.sex == CharacterContent.Sex.Female) { synthesizer.SelectVoice("Microsoft Zira Desktop"); }
-                        else { synthesizer.SelectVoice("Microsoft David Desktop"); }
-
-                        // Make folder if doesn't exist (this is so ugly lmao)
-                        if (!System.IO.Directory.Exists(lineDir)) { System.IO.Directory.CreateDirectory(lineDir); }
-
-                        // Write 32bit 44100hz wav file (required format for wem)
-                        synthesizer.SetOutputToWaveFile(wavPath, new SpeechAudioFormatInfo(44100, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
-                        synthesizer.Speak(line);
-                    }
-
-                    // Convert wav to wem
-                    // Setup paths, make folders
-                    string wwiseConsolePath = Path.Combine(Const.WWISE_PATH, "WwiseConsole.exe");
-                    string xmlName = $"{hashName}.wsources";
-                    string xmlPath = $"{lineDir}{xmlName}";
-                    string xmlRelative = @$"..\dialog\{npc.race}\{npc.sex}\{dialog.id}\{hashName}\{xmlName}";
-                    string projectDir = Path.Combine(Const.CACHE_PATH, @"wwise\");
-                    string projectPath = $"{projectDir}wwise.wproj";
-
-                    // Create XML file
-                    string xmlRaw = $""""
-                                <?xml version='1.0' encoding='UTF-8'?>
-                                <ExternalSourcesList SchemaVersion="1" Root="{lineDir}"><Source Path="{hashName}.wav" Conversion="Vorbis Quality High" /></ExternalSourcesList>
-                                """";
-                    File.WriteAllText(xmlPath, xmlRaw);
-
-                    // Call wwise console to convert wav to wem
-                    {
-                        ProcessStartInfo startInfo = new(wwiseConsolePath)
-                        {
-                            RedirectStandardOutput = true,
-                            WorkingDirectory = lineDir,
-                            UseShellExecute = false,
-                            CreateNoWindow = true
-                        };
-                        startInfo.ArgumentList.AddRange(["convert-external-source", $"\"{projectPath}\"", "--source-file", xmlRelative, "--output", "Windows", $"\"{lineDir}\""]);
-                        Utility.ExecuteProcess(startInfo);
-                    }
-                }
-                catch
-                {
-                    Lort.Log($"## ERROR ## Failed to generate dialog {wavPath}", Lort.Type.Debug);
-                }
-
-                if (File.Exists(wemPath)) { break; } // if the file is created successfully we don't need to retry.
-            }
-
-            if (!File.Exists(wemPath))
-            {
-                throw new Exception($"Failed to generated line {wemPath} despite {Const.SAM_MAX_RETRY} retry attempts.");
-            }
-
-            // Return wem path
-            return wemPath;
-        }
-        
         // Helper record for storing dialog creation data
         public record GenerateAltEntry
         {
@@ -216,7 +134,10 @@ namespace JortPob.Common
                 // Since NPCs can share common dialog we have to adjust for batch generation
                 var allEntries = entries.Where(e => !e.WemExists).ToList();
                 
-                var uniqueHashes = allEntries.GroupBy(e => e.HashName).Select(g => g.First()).ToList();
+                var uniqueHashes = allEntries.GroupBy(e => e.HashName)
+                    .Select(g => 
+                        g.FirstOrDefault(e => e.Info.sex == CharacterContent.Sex.Any && e.Npc.sex == CharacterContent.Sex.Male) ?? g.First())
+                    .ToList();
                 
                 var entryLookup = entries.GroupBy(e => e.HashName).ToDictionary(k => k.Key, k=> k.ToList());
                 
@@ -236,7 +157,7 @@ namespace JortPob.Common
                         string safeText;
                         if (useCustom || isCreature)
                         {
-                            safeText = MakeSafe($"{entry.Npc.id} says {entry.Line}");
+                            safeText = MakeSafe($"{entry.Npc.id} says {entry.Line}"); // change later to skip tts all together
                         }
                         else
                         {
@@ -248,7 +169,7 @@ namespace JortPob.Common
                         FLiteWrapper.Synthesize(safeText, voice,
                             Path.Combine(batchDir, $"{entry.tempHashName}.wav"));
                         
-                        if (entry.Info.sex == CharacterContent.Sex.Any)
+                        if (entry.Info.sex == CharacterContent.Sex.Any && entry.Npc.sex == CharacterContent.Sex.Male)
                         {
                             bool npcExistsForDialog = entryLookup.GetValueOrDefault(entry.HashName, []).Any(e => e.Npc.sex == CharacterContent.Sex.Female);
                             
@@ -355,8 +276,8 @@ namespace JortPob.Common
                                     // If the dialog is generic check if the npc can have the file
                                     if (item.Info.sex == CharacterContent.Sex.Any)
                                     {
-                                        shouldCopy = (item.Npc.sex == CharacterContent.Sex.Male || 
-                                                      item.Npc.sex == CharacterContent.Sex.Any);
+                                        shouldCopy = item.Npc.sex == CharacterContent.Sex.Male 
+                                                      || (entry.Npc.sex == CharacterContent.Sex.Female && item.Npc.sex == CharacterContent.Sex.Female);
                                     }
                                     else
                                     {

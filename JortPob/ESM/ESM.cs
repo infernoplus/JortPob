@@ -35,6 +35,10 @@ namespace JortPob
         public List<Cell> exterior, interior;
         public List<Papyrus> scripts;
 
+        public Dictionary<Int2, Cell> exteriorByCoords;
+ 
+        private Dictionary<Type, IReadOnlyList<JsonNode>> recordsByTypeFlat;
+
         public ESM(ScriptManager scriptManager)
         {
             // Ensure the cache path exists
@@ -96,11 +100,10 @@ namespace JortPob
             foreach (string name in Enum.GetNames(typeof(Type)))
             {
                 Enum.TryParse(name, out Type type);
-                if (type == Type.Dialogue || type == Type.DialogueInfo) { continue; } // special records, need to be handled specially
                 recordsByType.Add(type, new Dictionary<string, JsonNode>());
                 unidentifiedRecordsByType.Add(type, []);
             }
-
+            
             foreach (var record in json)
             {
                 if (record?["type"] == null)
@@ -133,6 +136,10 @@ namespace JortPob
                     recordsByType[type].Add(record["id"].GetValue<string>().ToLower(), record);
                 }
             }
+            
+            recordsByTypeFlat = Enum.GetValues<Type>().ToDictionary(
+                t=> t, t => (IReadOnlyList<JsonNode>) recordsByType[t].Values.Concat(unidentifiedRecordsByType[t]).ToList());
+
 
             /* Load and set defaults for all global variables listed in the ESM */
             List<string> globalVarFloats = new(); //make a list of variable names that are very bad no good
@@ -264,6 +271,7 @@ namespace JortPob
             Lort.Log("BUILDING CELLS", Lort.Type.Debug);
             CellWorker worker = new CellWorker(this);
             (exterior, interior) = worker.Go();
+            exteriorByCoords = exterior.Where(c => !c.HasFlag(Cell.Flag.IsInterior)).ToDictionary(c => c.coordinate);
         }
 
         /* List of types that we should search for references */
@@ -312,16 +320,13 @@ namespace JortPob
 
         public IEnumerable<JsonNode> GetAllRecordsByType(Type type)
         {
-            return recordsByType[type].Values.Concat(unidentifiedRecordsByType[type]);
+            return recordsByTypeFlat[type];
         }
 
         public Cell GetCellByGrid(Int2 position)
         {
-            foreach (Cell cell in exterior)
-            {
-                if (cell.coordinate == position && !cell.HasFlag(Cell.Flag.IsInterior)) { return cell; }
-            }
-            return null;
+            exteriorByCoords.TryGetValue(position, out var cell);
+            return cell;
         }
 
         public Cell GetCellByName(string name)
@@ -340,6 +345,14 @@ namespace JortPob
         /* By Morrowind coordinates, not elden ring relative coordinates. Only exterior cells (obviously) */
         public Cell GetCellByPosition(System.Numerics.Vector3 position)
         {
+            int x = (int)Math.Floor((position.X + Const.CELL_SIZE) / Const.CELL_SIZE);
+            int y = (int)Math.Floor((position.Z + Const.CELL_SIZE) / Const.CELL_SIZE);
+            exteriorByCoords.TryGetValue(new Int2(x, y), out Cell cell);
+            return cell;
+        }
+        
+        public Cell GetCellByPositionOld(System.Numerics.Vector3 position)
+        {
             foreach(Cell cell in exterior)
             {
                 if (cell.IsPointInside(position)) { return cell; }
@@ -347,7 +360,7 @@ namespace JortPob
             return null;
         }
 
-        public Landscape GetLandscape(Int2 coordinate)
+        public Landscape GetLandscape(Int2 coordinate, ILookup<int, JsonNode> lookup)
         {
             if (GetCellByGrid(coordinate) == null) { return null; } // Performance hack.
 
@@ -367,7 +380,8 @@ namespace JortPob
                 return null;
             }
 
-            Landscape landscape = new(this, coordinate, matchingRecord);
+            Landscape landscape = new(this, coordinate, matchingRecord, lookup);
+            
             landscapesByCoordinate[coordinate] = landscape;
             return landscape;
         }
@@ -383,9 +397,12 @@ namespace JortPob
         {
             Lort.Log($"Processing {exterior.Count} landscapes...", Lort.Type.Main);
             Lort.NewTask("Processing Landscape", exterior.Count);
+                        
+            var lookup = GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+
             foreach (Cell cell in exterior)
             {
-                GetLandscape(cell.coordinate);
+                GetLandscape(cell.coordinate, lookup);
                 Lort.TaskIterate();
             }
         }

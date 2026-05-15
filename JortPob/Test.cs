@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.IO;
+using System.Linq;
 using static JortPob.LiquidManager;
 
 namespace JortPob
@@ -88,7 +89,8 @@ namespace JortPob
                 int id = values.Item2;
 
                 TerrainInfo terrainInfo = cache.GetTerrain(coord);
-                Landscape landscape = esm.GetLandscape(coord);
+                var lookup = esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+                Landscape landscape = esm.GetLandscape(coord, lookup);
                 ModelConverter.LANDSCAPEtoFLVER(materialContext, terrainInfo, landscape,
                     Path.Combine(Const.CACHE_PATH, terrainInfo.path));
                 OUTPUT.Add(new(terrainInfo, id));

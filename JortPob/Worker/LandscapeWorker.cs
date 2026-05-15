@@ -1,4 +1,5 @@
-﻿using JortPob.Common;
+﻿using System;
+using JortPob.Common;
 using JortPob.Model;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -22,9 +23,12 @@ namespace JortPob.Worker
         private List<TerrainInfo> Run()
         {
             ConcurrentBag<TerrainInfo> terrains = new();
-            Parallel.ForEach(_esm.exterior, cell =>
+            
+            var lookup = _esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+            
+            Parallel.ForEach(_esm.exterior, new ParallelOptions {MaxDegreeOfParallelism = Environment.ProcessorCount / 2}, cell =>
             {
-                Landscape landscape = _esm.GetLandscape(cell.coordinate);
+                Landscape landscape = _esm.GetLandscape(cell.coordinate, lookup);
                 if (landscape == null)
                 {
                     return;
@@ -32,6 +36,7 @@ namespace JortPob.Worker
 
                 TerrainInfo terrainInfo = new(landscape.coordinate,
                     $"terrain\\ext{landscape.coordinate.x},{landscape.coordinate.y}.flver");
+                
                 terrainInfo = ModelConverter.LANDSCAPEtoFLVER(_materialContext, terrainInfo, landscape,
                     Path.Combine(Const.CACHE_PATH, "terrain",
                         $"ext{landscape.coordinate.x},{landscape.coordinate.y}.flver"));
@@ -50,8 +55,7 @@ namespace JortPob.Worker
 
         public List<TerrainInfo> Go()
         {
-            /* We can no longer multi-thread landscape loading. This is due to border blending requiring things be loaded 1 at a time. */
-            /* We can still multithread the model conversions though so that is still a thing */
+            // loading landscapes cannot be run in parallel as it is now.
             if (!Const.DEBUG_SKIP_TERRAIN_BORDER_BLENDING) { _esm.LoadLandscapes(); }
 
             Lort.Log($"Converting {_esm.exterior.Count} landscapes...", Lort.Type.Main); // Not that slow but multithreading good

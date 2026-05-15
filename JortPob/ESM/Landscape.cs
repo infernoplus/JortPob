@@ -30,7 +30,7 @@ namespace JortPob
 
         public bool hasWater, hasSwamp, hasLava;
 
-        public Landscape(ESM esm, Int2 coordinate, JsonNode json)
+        public Landscape(ESM esm, Int2 coordinate, JsonNode json, ILookup<int, JsonNode> landscapeTexturesByIndex)
         {
             this.coordinate = coordinate;
             flags = json["landscape_flags"].ToString();
@@ -73,9 +73,6 @@ namespace JortPob
                     new Texture("Default Terrain Texture", Path.Combine(Const.MORROWIND_PATH, Const.TERRAIN_DEFAULT_TEXTURE), DEFAULT_TEXTURE_INDEX)
                 }
             };
-
-            ILookup<int, JsonNode> landscapeTexturesByIndex = esm.GetAllRecordsByType(ESM.Type.LandscapeTexture)
-                .ToLookup(j => int.Parse(j["index"].ToString()));
 
             foreach (ushort index in ltex)
             {
@@ -200,25 +197,17 @@ namespace JortPob
             /* Do border blending */
             /* Morrowind terrain is mildly cursed and the borders between landscape data are usually awful */
             /* What we do is we look at what landscapes around us are already generated and we adopt that landscapes border vertices textures */
-            Vertex GetVertexByGrid(Int2 coordinate)
-            {
-                foreach (Vertex vert in vertices)
-                {
-                    if (vert.grid == coordinate) { return vert; }
-                }
-                return null; // Probably death here
-            }
-
             /* Start out by creating border arrays */
             if (!Const.DEBUG_SKIP_TERRAIN_BORDER_BLENDING)
             {
                 borders = new Vertex[4, 65];
                 for (int ii = 0; ii <= Const.CELL_GRID_SIZE; ii++)
                 {
-                    borders[3, ii] = GetVertexByGrid(new Int2(ii, 0));
-                    borders[1, ii] = GetVertexByGrid(new Int2(Const.CELL_GRID_SIZE, ii));
-                    borders[2, ii] = GetVertexByGrid(new Int2(ii, Const.CELL_GRID_SIZE));
-                    borders[0, ii] = GetVertexByGrid(new Int2(0, ii));
+                    borders[3, ii] = vertgrid[ii, 0];
+                    borders[1, ii] = vertgrid[Const.CELL_GRID_SIZE, ii];
+                    borders[2, ii] = vertgrid[ii, Const.CELL_GRID_SIZE];
+                    borders[0, ii] = vertgrid[0, ii];
+                    
                 }
 
                 /* Now we need to look at neighboring landscapes (that are already loaded) and blend our border vertices to them */

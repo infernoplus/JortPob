@@ -1098,7 +1098,7 @@ namespace JortPob
                         objs.Add(objPath);
                     }
                 }
-
+                
                 NavWorker navWorker = new NavWorker(objs, registry);
                 navWorker.Go();
 

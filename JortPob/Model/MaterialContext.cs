@@ -301,17 +301,13 @@ namespace JortPob.Model
 
             MATBIN matbin;
             string matbinkey = $"{matbinTemplate}::{matbinName}";
-            if (genMATBINs.ContainsKey(matbinkey))
-            {
-                matbin = genMATBINs.GetValueOrDefault(matbinkey);
-            }
-            else
-            {
-                matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
-                matbin.Samplers[0].Path = $"{diffuseTexture}";
-                matbin.SourcePath = $"{matbinName}.matxml";
-                genMATBINs.TryAdd(matbinkey, matbin);
-            }
+            
+            matbin = genMATBINs.GetOrAdd(matbinkey, _ =>{
+                var mb = matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
+                mb.Samplers[0].Path = $"{diffuseTexture}";
+                mb.SourcePath = $"{matbinName}.matxml";
+                return mb;
+            });
 
             FLVER2.BufferLayout layout = GetLayout($"{matbinTemplate}.matxml", true);
             FLVER2.GXList gx = GetGXList($"{matbinTemplate}.matxml");
@@ -351,18 +347,15 @@ namespace JortPob.Model
 
             MATBIN matbin;
             string matbinkey = $"{matbinTemplate}::{matbinName}";
-            if (genMATBINs.ContainsKey(matbinkey))
+            
+            matbin = genMATBINs.GetOrAdd(matbinkey, _ =>
             {
-                matbin = genMATBINs.GetValueOrDefault(matbinkey);
-            }
-            else
-            {
-                matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
-                matbin.Samplers[0].Path = $"{diffuseTexture}";
-                matbin.Samplers[1].Path = $"{normalTexture}";
-                matbin.SourcePath = $"{matbinName}.matxml";
-                genMATBINs.TryAdd(matbinkey, matbin);
-            }
+                var mb = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
+                mb.Samplers[0].Path = $"{diffuseTexture}";
+                mb.Samplers[1].Path = $"{normalTexture}";
+                mb.SourcePath = $"{matbinName}.matxml";
+                return mb;
+            });
 
             FLVER2.BufferLayout layout = GetLayout($"{matbinTemplate}.matxml", true);
             FLVER2.GXList gx = GetGXList($"{matbinTemplate}.matxml");
@@ -395,17 +388,14 @@ namespace JortPob.Model
 
             MATBIN matbin;
             string matbinkey = $"{matbinTemplate}::{matbinName}";
-            if (genMATBINs.ContainsKey(matbinkey))
+
+            matbin = genMATBINs.GetOrAdd(matbinkey, _ =>
             {
-                matbin = genMATBINs.GetValueOrDefault(matbinkey);
-            }
-            else
-            {
-                matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
-                matbin.Samplers[0].Path = $"{diffuseTexture}";
-                matbin.SourcePath = $"{matbinName}.matxml";
-                genMATBINs.TryAdd(matbinkey, matbin);
-            }
+                var mb = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
+                mb.Samplers[0].Path = $"{diffuseTexture}";
+                mb.SourcePath = $"{matbinName}.matxml";
+                return mb;
+            });
 
             FLVER2.BufferLayout layout = GetLayout($"{matbinTemplate}.matxml", true);
             FLVER2.GXList gx = GetGXList($"{matbinTemplate}.matxml");
@@ -499,19 +489,10 @@ namespace JortPob.Model
         {
             string diffuseTextureSourcePathA = mesh.textures[0].path;
             string diffuseTextureA;
-            string AddTexture(string diffuseTextureSourcePath)
-            {
-                if (genTextures.ContainsKey(diffuseTextureSourcePath))
-                {
-                    return genTextures.GetValueOrDefault(diffuseTextureSourcePath);
-                }
-                else
-                {
-                    string n = Path.GetFileNameWithoutExtension(diffuseTextureSourcePath);
-                    genTextures.TryAdd(diffuseTextureSourcePath, n);
-                    return n;
-                }
-            }
+            
+            string AddTexture(string diffuseTextureSourcePath) =>
+                genTextures.GetOrAdd(diffuseTextureSourcePath, Path.GetFileNameWithoutExtension);
+            
             diffuseTextureA = AddTexture(diffuseTextureSourcePathA);
 
             string matbinTemplate = matbinTemplates[MaterialTemplate.Opaque];
@@ -520,21 +501,18 @@ namespace JortPob.Model
 
             MATBIN matbin;
             string matbinkey = $"{matbinTemplate}::{matbinName}";
-            if (genMATBINs.ContainsKey(matbinkey))
-            {
-                matbin = genMATBINs.GetValueOrDefault(matbinkey);
-            }
-            else
-            {
-                matbin = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
-                matbin.Params[10].Value = false;   // "Enable SSR" -- turning this off as we dont want reflections and i assume its screen space reflections (?)
-                matbin.Params[13].Value = new int[] { 0, 0 };  // "AlphaRef" -- dont know what this does but I'm gonna guess transparency control of some kind
-                matbin.Samplers[0].Path = diffuseTextureA;
-                matbin.Samplers[0].Unk14 = new Vector2(Const.TERRAIN_UV_SCALE);
-                matbin.SourcePath = $"{matbinName}.matxml";
-                genMATBINs.TryAdd(matbinkey, matbin);
-            }
 
+            matbin = genMATBINs.GetOrAdd(matbinkey, _ =>
+            {
+                var mb = MATBIN.Read(Utility.ResourcePath($"matbins\\{matbinTemplate}.matbin"));
+                mb.Params[10].Value = false;   // "Enable SSR" -- turning this off as we dont want reflections and i assume its screen space reflections (?)
+                mb.Params[13].Value = new int[] { 0, 0 };  // "AlphaRef" -- dont know what this does but I'm gonna guess transparency control of some kind
+                mb.Samplers[0].Path = diffuseTextureA;
+                mb.Samplers[0].Unk14 = new Vector2(Const.TERRAIN_UV_SCALE);
+                mb.SourcePath = $"{matbinName}.matxml";
+                return mb;
+            });
+            
             FLVER2.BufferLayout layout = GetLayout($"{matbinTemplate}.matxml", true);
             FLVER2.GXList gx = GetGXList($"{matbinTemplate}.matxml");
             FLVER2.Material material = GetMaterial($"{matbinTemplate}.matxml", index);
@@ -554,19 +532,10 @@ namespace JortPob.Model
             string normalTextureSourcePath = Utility.ResourcePath(@"textures\tx_flat.dds");
             string blendTextureSourcePath = Utility.ResourcePath(@"textures\tx_grey.dds");
             string diffuseTextureA, diffuseTextureB, normalTexture, blendTexture;
-            string AddTexture(string diffuseTextureSourcePath)
-            {
-                if (genTextures.ContainsKey(diffuseTextureSourcePath))
-                {
-                    return genTextures.GetValueOrDefault(diffuseTextureSourcePath);
-                }
-                else
-                {
-                    string n = Path.GetFileNameWithoutExtension(diffuseTextureSourcePath);
-                    genTextures.TryAdd(diffuseTextureSourcePath, n);
-                    return n;
-                }
-            }
+            
+            string AddTexture(string diffuseTextureSourcePath) =>
+                genTextures.GetOrAdd(diffuseTextureSourcePath, Path.GetFileNameWithoutExtension);
+            
             diffuseTextureA = AddTexture(diffuseTextureSourcePathA);
             diffuseTextureB = AddTexture(diffuseTextureSourcePathB);
             normalTexture = AddTexture(normalTextureSourcePath);
@@ -629,19 +598,10 @@ namespace JortPob.Model
             string normalTextureSourcePath = Utility.ResourcePath(@"textures\tx_flat.dds");
             string blendTextureSourcePath = Utility.ResourcePath(@"textures\tx_grey.dds");
             string diffuseTextureA, diffuseTextureB, diffuseTextureC, normalTexture, blendTexture;
-            string AddTexture(string diffuseTextureSourcePath)
-            {
-                if (genTextures.ContainsKey(diffuseTextureSourcePath))
-                {
-                    return genTextures.GetValueOrDefault(diffuseTextureSourcePath);
-                }
-                else
-                {
-                    string n = Path.GetFileNameWithoutExtension(diffuseTextureSourcePath);
-                    genTextures.TryAdd(diffuseTextureSourcePath, n);
-                    return n;
-                }
-            }
+
+            string AddTexture(string diffuseTextureSourcePath) =>
+                genTextures.GetOrAdd(diffuseTextureSourcePath, Path.GetFileNameWithoutExtension);
+ 
             diffuseTextureA = AddTexture(diffuseTextureSourcePathA);
             diffuseTextureB = AddTexture(diffuseTextureSourcePathB);
             diffuseTextureC = AddTexture(diffuseTextureSourcePathC);

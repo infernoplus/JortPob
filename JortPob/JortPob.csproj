@@ -20,6 +20,7 @@
     <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="System.Speech" />
     <PackageReference Include="TeximpNet" />
+    <PackageReference Include="Unofficial.Triangle.NET" />
     <PackageReference Include="VGAudio" />
     <PackageReference Include="XbrzSharp" />
   </ItemGroup>
@@ -132,7 +133,7 @@
 		<Copy SourceFiles="DLL\WitchyFormats.dll" DestinationFolder="$(OutDir)" />
 		<Copy SourceFiles="DLL\ZstdNet.dll" DestinationFolder="$(OutDir)" />
 		<Copy SourceFiles="DLL\Zydis.dll" DestinationFolder="$(OutDir)" />
-        <Copy SourceFiles="DLL\flite_wrapper.dll" DestinationFolder="$(OutDir)"/>
+        <Copy SourceFiles="DLL\flite_wrapper.dll" DestinationFolder="$(OutDir)" />
 	</Target>
 	
   <!-- Resources -->
