@@ -1,24 +1,14 @@
 ﻿using JortPob.Common;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Reactive;
 
 namespace JortPob.Worker
 {
-    public class MapWorker : Worker
+    public class MapWorker : IWorker<Unit>
     {
-        private MapWorker()
-        {
-            _thread = new Thread(Run);
-            _thread.Start();
-        }
-
-        private void Run()
+        private Unit Run()
         {
             try
             {
@@ -28,8 +18,8 @@ namespace JortPob.Worker
 
                 // direct refrence to the naming convention used in the game
                 string[] groundLevels = new[] { "M00" };
-                MapGenerator.ZoomLevel[] zoomLevels = new[] 
-                { 
+                MapGenerator.ZoomLevel[] zoomLevels = new[]
+                {
                     MapGenerator.ZoomLevel.L0,
                     MapGenerator.ZoomLevel.L1,
                     MapGenerator.ZoomLevel.L2
@@ -52,10 +42,7 @@ namespace JortPob.Worker
                     maskPath,
                     bhdPath,
                     bdtPath,
-                    progressCallback: () =>
-                    {
-                        Lort.TaskIterate();
-                    }
+                    progressCallback: Lort.TaskIterate
                 );
 
                 Lort.Log("Writing map files... ", Lort.Type.Main);
@@ -63,29 +50,29 @@ namespace JortPob.Worker
                 File.Copy(maskPath, Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.mtmskbnd.dcx"), true);
                 File.WriteAllBytes(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.tpfbhd"), result.bhdBytes);
                 File.WriteAllBytes(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.tpfbdt"), result.bdtBytes);
-            } catch (Exception ex) 
+            }
+            catch (Exception ex)
             {
                 Lort.Log($"Failed to generate UI map: {ex.Message}", Lort.Type.Debug);
             }
-            IsDone = true;
+
+            return Unit.Default;
         }
 
-        public static void Go()
+        public Unit Go()
         {
-            if (Const.DEBUG_SKIP_CUSTOM_MAP) { return; }
+            if (Const.DEBUG_SKIP_CUSTOM_MAP) { return Unit.Default; }
+            
+            // if debug_reuse is on and the files are already there...
             if (Const.DEBUG_REUSE_FILES &&
                 File.Exists(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.tpfbhd")) &&
                 File.Exists(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.tpfbdt")) &&
                 File.Exists(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.mtmskbnd.dcx")))
-            { return; }             // if debug_reuse is on and the files are already there...
-
-            MapWorker worker = new();
-
-            while (!worker.IsDone)
             {
-                // wait...
-                Thread.Yield();
+                return Unit.Default;
             }
+
+            return Run();
         }
     }
 }

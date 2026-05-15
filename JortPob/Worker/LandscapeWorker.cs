@@ -1,48 +1,45 @@
-﻿using JortPob.Common;
+﻿using System;
+using JortPob.Common;
 using JortPob.Model;
-using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Threading;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace JortPob.Worker
 {
-    public class LandscapeWorker : Worker
+    public class LandscapeWorker : IWorker<List<TerrainInfo>>
     {
-        private MaterialContext materialContext;
-        private ESM esm;
-
-        private int start;
-        private int end;
-
-        public List<TerrainInfo> terrains;
-
-        public LandscapeWorker(MaterialContext materialContext, ESM esm, int start, int end)
+        private readonly MaterialContext _materialContext;
+        private readonly ESM _esm;
+        
+        public LandscapeWorker(MaterialContext materialContext, ESM esm)
         {
-            this.materialContext = materialContext;
-            this.esm = esm;
-
-            this.start = start;
-            this.end = end;
-
-            terrains = new();
-
-            _thread = new Thread(Run);
-            _thread.Start();
+            _materialContext = materialContext;
+            _esm = esm;
         }
 
-        private void Run()
+        private List<TerrainInfo> Run()
         {
-            ExitCode = 1;
-
-            for (int i = start; i < Math.Min(esm.exterior.Count, end); i++)
+            ConcurrentBag<TerrainInfo> terrains = new();
+            
+            var lookup = _esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+            
+            Parallel.ForEach(_esm.exterior, new ParallelOptions {MaxDegreeOfParallelism = Environment.ProcessorCount / 2}, cell =>
             {
-                Cell cell = esm.exterior[i];
-                Landscape landscape = esm.GetLandscape(cell.coordinate);
-                if (landscape == null) { continue; }
+                Landscape landscape = _esm.GetLandscape(cell.coordinate, lookup);
+                if (landscape == null)
+                {
+                    return;
+                }
 
-                TerrainInfo terrainInfo = new(landscape.coordinate, $"terrain\\ext{landscape.coordinate.x},{landscape.coordinate.y}.flver");
-                terrainInfo = ModelConverter.LANDSCAPEtoFLVER(materialContext, terrainInfo, landscape, Path.Combine(Const.CACHE_PATH, "terrain", $"ext{landscape.coordinate.x},{landscape.coordinate.y}.flver"));
+                TerrainInfo terrainInfo = new(landscape.coordinate,
+                    $"terrain\\ext{landscape.coordinate.x},{landscape.coordinate.y}.flver");
+                
+                terrainInfo = ModelConverter.LANDSCAPEtoFLVER(_materialContext, terrainInfo, landscape,
+                    Path.Combine(Const.CACHE_PATH, "terrain",
+                        $"ext{landscape.coordinate.x},{landscape.coordinate.y}.flver"));
 
                 // Set some stuff
                 terrainInfo.hasWater = landscape.hasWater;
@@ -52,52 +49,19 @@ namespace JortPob.Worker
                 terrains.Add(terrainInfo);
 
                 Lort.TaskIterate(); // Progress bar update
-            }
-
-            IsDone = true;
-            ExitCode = 0;
+            });
+            return terrains.ToList();
         }
 
-        public static List<TerrainInfo> Go(MaterialContext materialContext, ESM esm)
+        public List<TerrainInfo> Go()
         {
-            /* We can no longer multi-thread landscape loading. This is due to border blending requiring things be loaded 1 at a time. */
-            /* We can still multithread the model conversions though so that is still a thing */
-            if (!Const.DEBUG_SKIP_TERRAIN_BORDER_BLENDING) { esm.LoadLandscapes(); }
+            // loading landscapes cannot be run in parallel as it is now.
+            if (!Const.DEBUG_SKIP_TERRAIN_BORDER_BLENDING) { _esm.LoadLandscapes(); }
 
-            Lort.Log($"Converting {esm.exterior.Count} landscapes...", Lort.Type.Main); // Not that slow but multithreading good
-            Lort.NewTask("Converting Landscape", esm.exterior.Count);
-
-            int partition = (int)Math.Ceiling(esm.exterior.Count / (float)Const.THREAD_COUNT);
-            List<LandscapeWorker> workers = new();
-            for (int i = 0; i < Const.THREAD_COUNT; i++)
-            {
-                int start = i * partition;
-                int end = start + partition;
-                LandscapeWorker worker = new(materialContext, esm, start, end);
-                workers.Add(worker);
-            }
-
-            /* Wait for threads to finish */
-            while (true)
-            {
-                bool done = true;
-                foreach (LandscapeWorker worker in workers)
-                {
-                    done &= worker.IsDone;
-                }
-
-                if (done)
-                    break;
-            }
-
-            /* Merge output */
-            List<TerrainInfo> terrains = new();
-            foreach (LandscapeWorker worker in workers)
-            {
-                terrains.AddRange(worker.terrains);
-            }
-
-            return terrains;
+            Lort.Log($"Converting {_esm.exterior.Count} landscapes...", Lort.Type.Main); // Not that slow but multithreading good
+            Lort.NewTask("Converting Landscape", _esm.exterior.Count);
+            
+            return Run();
         }
     }
 }

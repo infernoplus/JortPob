@@ -1,15 +1,19 @@
 ﻿using JortPob.Common;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 
 #nullable enable
 
 namespace JortPob.Worker
 {
-    public class CellWorker
+    public class CellWorker(ESM esm) : IWorker<(List<Cell>, List<Cell>)>
     {
+        private ESM Esm { get;} = esm;
+
         private static Cell? MakeCell (JsonNode node, ESM esm)
         {
             bool is_interior = node["data"]!["flags"]!.GetValue<string>().ToLower().Contains("is_interior");
@@ -40,32 +44,34 @@ namespace JortPob.Worker
             Cell cell = new(esm, node);
 
             // If the cell is basically empty, we just go ahead and discard it.
-            if (cell.contents.Count() <= 0) { return null; }
+            if (!cell.contents.Any()) { return null; }
 
             return cell;
         }
 
-        public static (List<Cell>, List<Cell>) Go(ESM esm)
+        private (List<Cell>, List<Cell>) Cells(ESM esm)
         {
             var cellRecords = esm.GetAllRecordsByType(ESM.Type.Cell).ToList();
             Lort.Log($"Parsing {cellRecords.Count} cells...", Lort.Type.Main);
             Lort.NewTask("Parsing Cells", cellRecords.Count);
 
-            var cells = cellRecords.AsParallel()
-                .WithDegreeOfParallelism(Const.THREAD_COUNT)
+            var cells = cellRecords
+                .AsParallel()
                 .Select(node => {
-                        Cell cell = MakeCell(node, esm);
-                        Lort.TaskIterate(); // Progress bar update
-                        return cell;
-                    })
+                    Cell cell = MakeCell(node, esm);
+                    Lort.TaskIterate(); // Progress bar update
+                    return cell;
+                })
                 .Where(cell => cell != null);
 
             /* Grab all parsed cells from threads and put em in lists */
-            List<Cell> interior = new();
-            List<Cell> exterior = new();
-            foreach (var cell in cells)
+            ConcurrentBag<Cell> interior = new();
+            ConcurrentBag<Cell> exterior = new();
+
+            Parallel.ForEach(cells, cell =>
             {
-                if (Math.Abs(cell!.coordinate.x) > Const.CELL_EXTERIOR_BOUNDS || Math.Abs(cell.coordinate.y) > Const.CELL_EXTERIOR_BOUNDS || cell.HasFlag(Cell.Flag.IsInterior))
+                if (Math.Abs(cell!.coordinate.x) > Const.CELL_EXTERIOR_BOUNDS ||
+                    Math.Abs(cell.coordinate.y) > Const.CELL_EXTERIOR_BOUNDS || cell.HasFlag(Cell.Flag.IsInterior))
                 {
                     interior.Add(cell);
                 }
@@ -73,15 +79,19 @@ namespace JortPob.Worker
                 {
                     exterior.Add(cell);
                 }
-            }
+            });
 
-            /* Sort arrays since they were loaded in threads the order is effectively random */
-            /* Sorting is not strictly required but it causes randomization in the process which we want to avoid */
-            interior = interior.OrderBy(c => c.name).ToList();
-            exterior = exterior.OrderByDescending(c => c.coordinate.x).ThenByDescending(c => c.coordinate.y).ToList();
+            List<Cell> orderedInterior = interior.AsParallel().OrderBy(c => c.name).ToList();
+            List<Cell> orderedExterior = exterior.AsParallel().OrderByDescending(c => c.coordinate.x).ThenByDescending(c => c.coordinate.y).ToList();
+  
 
             /* return */
-            return (exterior, interior);
+            return (orderedExterior, orderedInterior);
+        }
+
+        public (List<Cell>, List<Cell>) Go()
+        {
+            return Cells(Esm);
         }
     }
 }

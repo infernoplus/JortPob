@@ -1,7 +1,6 @@
 ﻿using DirectXTexNet;
 using JortPob.Common;
 using SoulsFormats;
-using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;

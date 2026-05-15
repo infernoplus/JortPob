@@ -5,7 +5,6 @@ using HKLib.Serialization.hk2018.Xml;
 using JortPob.Common;
 using SoulsFormats;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -17,16 +16,14 @@ namespace JortPob.Model
 {
     partial class ModelConverter
     {
-        private static readonly ConcurrentDictionary<string, HavokTypeRegistry> registryCache = new();
-
-        public static void OBJtoHKX(string objPath, string hkxPath)
+        public static void OBJtoHKX(string objPath, string hkxPath, HavokTypeRegistry registry)
         {
             string toolsDir = $"{AppDomain.CurrentDomain.BaseDirectory}Resources\\tools\\ER_OBJ2HKX\\";
             DirectoryInfo tempDir = CreateTempDirectory(toolsDir); // directory for all the intermediate files
 
             /* Convert obj to hkx */
             byte[] hkx = ObjToHkx(toolsDir, tempDir.FullName, objPath);
-            hkx = UpgradeHKX(toolsDir, hkx, objPath);
+            hkx = UpgradeHKX(toolsDir, hkx, objPath, registry);
             File.WriteAllBytes(hkxPath, hkx);
             
             /* Delete temp files */
@@ -72,13 +69,12 @@ namespace JortPob.Model
             return File.ReadAllBytes($@"{tempDir}\{fName}.1.hkx");  
         }
 
-        private static byte[] UpgradeHKX(string toolsDir, byte[] bytes, string objPath)
+        private static byte[] UpgradeHKX(string toolsDir, byte[] bytes, string objPath, HavokTypeRegistry registry)
         {
             var des = new HKX2.PackFileDeserializer();
             var root = (HKX2.hkRootLevelContainer)des.Deserialize(new BinaryReaderEx(false, bytes));
 
             hkRootLevelContainer hkx = HkxUpgrader.UpgradehkRootLevelContainer(root);
-            HavokTypeRegistry registry = GetTypeRegistryForDirectory(toolsDir);
 
             /* Absolute garbage code fix for materials */
             /* Somewhere in the process of dropoff -> 12av -> hork code chain the material ids get mutilated and so I have to repair them at the end */
@@ -109,18 +105,7 @@ namespace JortPob.Model
             }
             return bytes;
         }
-
-        /**
-         * Helper to ensure we only need to initialize the Havok registry once per temp directory.
-         */
-        private static HavokTypeRegistry GetTypeRegistryForDirectory(string tempDir)
-        {
-            return registryCache.GetOrAdd(
-                Path.Combine(tempDir, "HavokTypeRegistry20180100.xml"),
-                HavokTypeRegistry.Load
-            );
-        }
-
+        
         /**
          * Helper to generate a reasonably unique temp directory nested in a given directory.
          * We can probably switch to using the built-in `GetTempPath` in the future, but

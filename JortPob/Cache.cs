@@ -11,6 +11,7 @@ using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using HKLib.Reflection.hk2018;
 
 #nullable enable
 
@@ -244,7 +245,7 @@ namespace JortPob
         }
 
         /* Big stupid load function */
-        public static Cache Load(ESM esm)
+        public static Cache Load(ESM esm, HavokTypeRegistry registry)
         {
             string manifestPath = Path.Combine(Const.CACHE_PATH, "cache.json");
 
@@ -312,13 +313,15 @@ namespace JortPob
                 MaterialContext? materialContext = new();
 
                 /* Convert models/textures for terrain */
-                nu.terrains = LandscapeWorker.Go(materialContext, esm);
+                LandscapeWorker landscapeWorker = new LandscapeWorker(materialContext, esm);
+                nu.terrains = landscapeWorker.Go();
 
                 /* Generate stuff for cutouts */
                 nu.cutouts = LiquidManager.GenerateCutouts(esm);
 
                 /* Convert models/textures for models */
-                nu.assets = FlverWorker.Go(materialContext, meshes);
+                FlverWorker flverWorker = new FlverWorker(materialContext, meshes);
+                nu.assets = flverWorker.Go();
 
                 /* Generate stuff for water */
                 nu.liquids = LiquidManager.GenerateLiquids(esm, materialContext);
@@ -418,7 +421,9 @@ namespace JortPob
                 {
                     collisions.Add(cutout.collision);
                 }
-                HkxWorker.Go(collisions);
+
+                HkxWorker hkxWorker = new HkxWorker(collisions, registry);
+                hkxWorker.Go();
 
                 /* Assign resource ID numbers */
                 int nextM = 0, nextA = 0, nextO = 5000;

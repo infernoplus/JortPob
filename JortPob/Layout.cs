@@ -2,12 +2,10 @@
 using JortPob.Scripts;
 using SoulsFormats;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using Microsoft.Scripting.Utils;
 using static JortPob.InteriorGroup;
 
 namespace JortPob
@@ -819,13 +817,15 @@ namespace JortPob
 
             /* Generate map point placements */
             Dictionary<string, List<Vector3>> mapPoints = new();
-
+            
+            var lookup = esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+            
             // collect em all
             foreach (Cell cell in esm.exterior)
             {
                 if(!string.IsNullOrEmpty(cell.name))
                 {
-                    Landscape landscape = esm.GetLandscape(cell.coordinate);
+                    Landscape landscape = esm.GetLandscape(cell.coordinate, lookup);
                     Vector3 center;
                     if (landscape == null) { center = new(); }
                     else { center = cell.center + new Vector3(0f, landscape.GetHeightAverage(), 0f); }

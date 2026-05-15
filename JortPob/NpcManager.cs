@@ -165,7 +165,7 @@ namespace JortPob
                         /* Debug voice acting using SAM */
                         string wemFile;
                         uint nxtid = (uint)(info.id + i);
-                        string hashName = $"{info.text.GetMD5Hash()}+{i}"; // Get the hash of the actual text string for this line, it will be our unique identier and filename for the cached wav/wem
+                        string hashName = $"{info.text.GetMD5Hash() }+{i}"; // Get the hash of the actual text string for this line, it will be our unique identier and filename for the cached wav/wem
                         if (Const.USE_SAM && !Const.DEBUG_SKIP_SOUND) { wemFile = soundManager.GenerateLine(dia, info, line, hashName, content); }
                         else { wemFile = Const.DEFAULT_DIALOG_WEM; }
 
@@ -452,8 +452,9 @@ namespace JortPob
         /* ESDs are now 1 to 1 with individual placements of enemies/creatures so the file writing has been simplified */
         public void Write()
         {
-            EsdWorker.Go(esds);
-
+            EsdWorker esdWorker = new EsdWorker(esds);
+            esdWorker.Go();
+            
             Lort.Log($"Binding {esds.Count()} ESDs...", Lort.Type.Main);
             Lort.NewTask($"Binding ESDs", esds.Count());
 

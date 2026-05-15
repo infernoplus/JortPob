@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using HKLib.Reflection.hk2018;
 using static JortPob.Scripts.Script;
 
 namespace JortPob
@@ -21,21 +22,36 @@ namespace JortPob
             Override.Initialize(); // load all override jsons
             Utility.InitSRGBCache();
             Oodler.Initialize();
+            
+            string toolsDir = $"{AppDomain.CurrentDomain.BaseDirectory}Resources\\tools\\ER_OBJ2HKX\\";
+            HavokTypeRegistry registry = HavokTypeRegistry.Load(Path.Combine(toolsDir, "HavokTypeRegistry20180100.xml"));
 
 
             /* Loading stuff */
             ScriptManager scriptManager = new();                                              // Manages EMEVD scripts
+            
             ESM esm = new ESM(scriptManager);                                                // Morrowind ESM parse and partial serialization
-            Cache cache = Cache.Load(esm);                                                  // Load existing cache (FAST!) or generate a new one (SLOW!)
+            
+            esm.BuildCells(); // Has to be built after constructor in the future we need to move processing out of constructors not what they should be doing
+            
+            Cache cache = Cache.Load(esm, registry);                                                  // Load existing cache (FAST!) or generate a new one (SLOW!)
             TextManager text = new();                                                      // Manages FMG text files
+            
             MenuTextureManager texManager = new(esm);                                     // Manages menu textures for things like inventory icons and loading screens
+            
             Paramanager param = new(cache, text);                                        // Class for managing PARAM files
-            SpeffManager speff = new(esm, param, scriptManager, texManager, text);      // Manages speff params, primarily for magic effects like potions and enchanted gear. NOT SPELLS!
-            ItemManager item = new(esm, param, scriptManager, speff, texManager, text);                         // Handles generation and reampping of items
-            Layout layout = new(cache, esm, param, text, scriptManager);                                       // Subdivides all content data from ESM into a more elden ring friendly format
-            SoundManager sound = new();                                                                       // Manages vcbanks
-            NpcManager character = new(esm, layout, sound, param, text, item, speff, scriptManager);         // Manages dialog esd
 
+            param.Build();
+            
+            SpeffManager speff = new(esm, param, scriptManager, texManager, text);      // Manages speff params, primarily for magic effects like potions and enchanted gear. NOT SPELLS!
+            
+            ItemManager item = new(esm, param, scriptManager, speff, texManager, text);                         // Handles generation and reampping of items
+            
+            Layout layout = new(cache, esm, param, text, scriptManager);                                       // Subdivides all content data from ESM into a more elden ring friendly format
+            
+            SoundManager sound = new();                                                                       // Manages vcbanks
+            
+            NpcManager character = new(esm, layout, sound, param, text, item, speff, scriptManager);     
 
             // Helpers/shared values
             List<Tuple<Vector3, TerrainInfo>> emptyTerrainList = [];
@@ -47,11 +63,13 @@ namespace JortPob
             for (int i = 0; i <= 100; i++) { text.AddTopic($"Disposition: {i}"); }
 
             /* Write custom map */
-            MapWorker.Go();
+            MapWorker mapWorker = new MapWorker();
+            mapWorker.Go();
 
             /* replace the maptexinfo responsible for weather functions, sourced from Resources/other/mapinfotex.png */
-            MapInfoTexWorker.Go(); // @TODO: this is like... designed as a worker but runs on 1 thread lol
-
+            MapInfoTexWorker texWorker = new MapInfoTexWorker();
+            texWorker.Go();
+            
             /* Replace openign cutscene */
             if(!Const.DEBUG_SKIP_CUTSCENES) { Cutscener.Create(Path.Combine(Const.MORROWIND_PATH, @"Data Files\video\mw_intro.bik"), 0040); }
 
@@ -1080,8 +1098,9 @@ namespace JortPob
                         objs.Add(objPath);
                     }
                 }
-
-                NavWorker.Go(objs);
+                
+                NavWorker navWorker = new NavWorker(objs, registry);
+                navWorker.Go();
 
                 /* After all the nav conversions are finshed we can now do nvas and nvbnds */
                 Lort.Log($"Binding {layout.TileCount + layout.InteriorCount} NVBNDs...", Lort.Type.Main);
@@ -1280,7 +1299,7 @@ namespace JortPob
             Lort.Log($"Generating debug warp zone...", Lort.Type.Main);
             WarpZone.Generate(layout, scriptManager, param);
 
-            /* Write sound BNKs */
+            /* Write sound BNKs */ 
             sound.Write();
 
             /* Write ESD bnds */
@@ -1339,7 +1358,9 @@ namespace JortPob
             esm = null;  // free some memory here
             param = null;
             GC.Collect();
-            MsbWorker.Go(msbs);
+
+            MsbWorker msbWorker = new MsbWorker(msbs);
+            msbWorker.Go();
 
             /* Copy DLLs */
             string[] dlls = Directory.GetFiles(Utility.ResourcePath("dlls"));
@@ -1354,7 +1375,7 @@ namespace JortPob
                 }
                 Lort.TaskIterate();
             }
-
+            
             /* Donezo */
             Lort.Log("Done!", Lort.Type.Main);
             Lort.NewTask("Done!", 1);

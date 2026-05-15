@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using TriangleNet.Geometry;
 
 namespace JortPob
 {
@@ -30,6 +31,9 @@ namespace JortPob
             List<Tuple<Int2, WetMesh>> wetcollisions = new();
             WetMesh genericwetcollision = new(esm.GetCellByGrid(new Int2(0, 0)), new()); // generic no cutouts water plane. most cells will use this
             wetcollisions.Add(new(new Int2(0, 0), genericwetcollision));
+            
+            var lookup = esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+           
             foreach(Cell cell in esm.exterior)
             {
                 // Only generate if there is water, and it has a cutout intersecting somewhere
@@ -44,7 +48,7 @@ namespace JortPob
                 }
                 if (!needsMesh) { continue; } // no cutout, skip
 
-                Landscape landscape = esm.GetLandscape(cell.coordinate);
+                Landscape landscape = esm.GetLandscape(cell.coordinate, lookup);
                 if (!landscape.hasWater) { continue; } // no water, skip
 
                 WetMesh wetcollision = new(cell, CUTOUTS);
@@ -780,6 +784,9 @@ namespace JortPob
                 faces = new();
                 Dictionary<Int2, int> grid = new();
                 int flip = 0;
+                
+                var lookup = esm.GetAllRecordsByType(ESM.Type.LandscapeTexture).ToLookup(j => int.Parse(j["index"].ToString()));
+                
                 /* We do this 2 in passes. first pass is tesselated, second is filling in more distant squares */
                 for (int y = -(Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.Y)); y < (Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.Y)); y++)
                 {
@@ -788,7 +795,7 @@ namespace JortPob
                         float dist = Vector2.Distance(new Vector2(x, y), Const.WATER_CENTER);
                         if (dist < Const.WATER_RADIUS)
                         {
-                            Landscape landscape = esm.GetLandscape(new Int2(x, y));
+                            Landscape landscape = esm.GetLandscape(new Int2(x, y),lookup);
 
                             if (landscape == null || landscape.hasWater)
                             {
@@ -838,6 +845,7 @@ namespace JortPob
 
                 /* Outline triangle fill time */
                 flip = 0;
+                              
                 for (int y = -(Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.Y)); y < (Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.Y)); y++)
                 {
                     for (int x = -(Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.X)); x < (Const.WATER_RADIUS + (int)Math.Abs(Const.WATER_CENTER.X)); x++)
@@ -845,7 +853,7 @@ namespace JortPob
                         float dist = Vector2.Distance(new Vector2(x, y), Const.WATER_CENTER);
                         if (dist < Const.WATER_RADIUS)
                         {
-                            Landscape landscape = esm.GetLandscape(new Int2(x, y));
+                            Landscape landscape = esm.GetLandscape(new Int2(x, y), lookup);
 
                             if (landscape == null || landscape.hasWater)
                             {
@@ -1185,99 +1193,33 @@ namespace JortPob
                         newEdges.Add(jankedgeb);
                     }
 
-                    List<Tuple<Vector3, float>> FindNearest(Vector3 p, List<Vector3> ps, int results)
+                    var wetEdgePolygon = new Polygon();
+                    
+                    foreach(WetEdge edge in openEdges)
                     {
-                        List<Tuple<Vector3, float>> nearest = new();
-                        for (int k = 0; k < ps.Count; k++)
-                        {
-                            if (p == ps[k]) { continue; } // dont self succ
-
-                            if (nearest.Count() < results)
-                            {
-                                nearest.Add(new(ps[k], Vector3.Distance(ps[k], p)));
-                                continue;
-                            }
-
-                            float dist = Vector3.Distance(p, ps[k]);
-                            for (int l = 0; l < nearest.Count(); l++)
-                            {
-                                Tuple<Vector3, float> tuple = nearest[l];
-                                if (dist < tuple.Item2)
-                                {
-                                    nearest.Insert(l, new(ps[k], dist));
-                                    break;
-                                }
-                            }
-                            nearest = nearest.Slice(0, results);
-                        }
-                        return nearest;
+                        wetEdgePolygon.Add(new Vertex(edge.a.X, edge.a.Z));
+                        wetEdgePolygon.Add(new Vertex(edge.b.X, edge.b.Z));
+                    }
+                    
+                    var countourList = new List<Vertex>();
+                    
+                    for(int i = 0; i < outpoints.Count; i++)
+                    {
+                        countourList.Add(new Vertex(outpoints[i].X, outpoints[i].Z));
+                    }
+                    
+                    wetEdgePolygon.Add(new Contour(countourList));
+                    
+                    var mesh2d = wetEdgePolygon.Triangulate();
+                    
+                    foreach(var triangle in mesh2d.Triangles)
+                    {
+                        Vector3 a = new Vector3((float)triangle.GetVertex(0).X, 0f, (float)triangle.GetVertex(0).Y);
+                        Vector3 b = new Vector3((float)triangle.GetVertex(1).X, 0f, (float)triangle.GetVertex(1).Y);
+                        Vector3 c = new Vector3((float)triangle.GetVertex(2).X, 0f, (float)triangle.GetVertex(2).Y); 
+                        faces.Add(new WetFace(a,b,c));
                     }
 
-
-                    for (int r = 1; r < 24; r += (int)(Math.Max(r * .25f, 1)))  // big stupid ugly slow as shit hack, don't worry about it
-                    {
-                        for (int i = 0; i < points.Count(); i++)
-                        {
-                            Vector3 a = points[i];
-
-                            List<Tuple<Vector3, float>> nearestB = FindNearest(a, points, r);
-
-                            for (int j = 0; j < nearestB.Count(); j++)
-                            {
-                                Vector3 b = nearestB[j].Item1;
-                                Vector3 center = (a + b) / 2f;
-
-                                /* Find nearest handful of points */
-                                List<Tuple<Vector3, float>> nearestC = FindNearest(center, points, r);
-
-
-                                /* Attempt to make a face starting with nearest point. check if they are valid then discard or add and continue */
-                                foreach (Tuple<Vector3, float> tuple in nearestC)
-                                {
-                                    Vector3 c = tuple.Item1;
-
-                                    if (c == a || c == b) { continue; } // dont self succ
-
-                                    WetFace nf = new WetFace(a, b, c);
-
-                                    /* Verify not an already existing face */
-                                    foreach (WetFace newFace in newFaces)
-                                    {
-                                        if (newFace == nf) { nf = null; break; }
-                                    }
-                                    if (nf == null) { continue; }
-
-                                    /* Check degenerate */
-                                    if (nf.IsDegenerate()) { continue; }
-
-                                    /* Check if it intersects with any inner edges */
-                                    if (nf.IsIntersect(newEdges)) { continue; }
-
-                                    /* Check if the face is skipping over a vertex on the same edge and effectively encapsulating a smaller face */
-                                    foreach (Vector3 z in points)
-                                    {
-                                        if (z == a || z == b || z == c) { continue; } // make sure this point isnt a part of the new tri
-                                        if (nf.IsInside(z, true)) // see if this point is inside or aligned on the edge of the new tri
-                                        {
-                                            nf = null; break; // if it is then discard because this tri will create an open edge
-                                        }
-
-                                    }
-                                    if (nf == null) { continue; }
-
-                                    /* Last check if the dumbfuck edge case "shrink check" */
-                                    /* Described in the block above that handles triangulated to non triangulated squares. just uhh go look up there. same situation */
-                                    if (nf.Scale(.9f).IsIntersect(newEdges)) { continue; }
-
-                                    /* Cool beans, add it and continue */
-                                    newFaces.Add(nf); newEdges.AddRange(nf.Edges());
-                                    //break; // 1 valid face per initial point is fine for now
-                                }
-                            }
-                        }
-                        Lort.TaskIterate();
-                    }
-                    faces.AddRange(newFaces);
                 }
 
                 SubtractCutouts(cutouts);  // the big boom boom function
@@ -1404,6 +1346,12 @@ namespace JortPob
 
             private void SubtractCutouts(List<Cutout> cutouts)
             {
+                float CutoutMaxDist(Cutout cutout, WetFace face)
+                {
+                    Vector3 center = (face.a + face.b + face.c) / 3f;
+                    return Vector3.Distance(new Vector3(cutout.position.X, 0f, cutout.position.Z), center);
+                }
+                
                 /* Begin slicing cutouts... god help me */
 
                 /* We check every triangle in the mesh for intersection with a cutout */
@@ -1416,6 +1364,10 @@ namespace JortPob
 
                     foreach (Cutout cutout in cutouts)
                     {
+                        float maxReach = (float)(cutout.size * 1.5);
+                        
+                        if(CutoutMaxDist(cutout, face) > maxReach) continue;
+                        
                         /* Check */
                         bool inside = true;
                         foreach (Vector3 point in cutout.Points())
@@ -1474,6 +1426,10 @@ namespace JortPob
 
                     foreach (Cutout cutout in cutouts)
                     {
+                        float maxReach = (float)(cutout.size * 1.5);
+                        
+                        if(CutoutMaxDist(cutout, face) > maxReach) continue;
+                       
                         /* Check */
                         if (cutout.IsInside(face.a, false) || cutout.IsInside(face.b, false) || cutout.IsInside(face.c, false))
                         {
@@ -1607,11 +1563,15 @@ namespace JortPob
                 /* As an idea to fix infinite recursive slicing lets uhhh make it a single loop through each cutout, adding new faces at the end instead of in loop */
                 foreach (Cutout cutout in cutouts)
                 {
+                    float maxReach = (float)(cutout.size * 1.5);
                     List<WetFace> newFaces = new();
-
+                 
                     for (int i = 0; i < faces.Count(); i++)
                     {
                         WetFace face = faces[i];
+                        Vector3 faceCenter = (face.a + face.b + face.c) / 3f;
+                        if (Vector3.Distance(new Vector3(cutout.position.X, 0f, cutout.position.Z), faceCenter) > maxReach) { continue; }
+                        
                         List<WetEdge> outline = face.Edges(); // edges of tri
 
                         if (face.IsIntersect(cutout.Edges()))

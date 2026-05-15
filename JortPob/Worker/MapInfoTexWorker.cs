@@ -1,23 +1,19 @@
-﻿using JortPob.Common;
-using JortPob.Worker;
-using SoulsFormats;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Reactive;
 using System.Text.RegularExpressions;
-using System.Threading;
+using System.Threading.Tasks;
+using JortPob.Common;
+using SoulsFormats;
 
-public class MapInfoTexWorker : Worker
+namespace JortPob.Worker;
+
+public class MapInfoTexWorker : IWorker<Unit>
 {
-    private MapInfoTexWorker()
-    {
-        _thread = new Thread(Replace);
-        _thread.Start();
-    }
-
     private struct Tile
     {
         public int MapId;
@@ -27,24 +23,24 @@ public class MapInfoTexWorker : Worker
     }
 
     // this is strictly used for testing if the outputed chunks are stitched correctly
-    public static void StitchProcess()
+    public void StitchProcess()
     {
         var instance = new MapInfoTexWorker();
         var bmp = Stitch(Path.Combine(Const.ELDEN_PATH, "Game", "other", "mapinfotex"));
 
         bmp.Save(Path.Combine(Const.CACHE_PATH, "mapinfotex.bmp"), ImageFormat.Bmp);
     }
+    
 
-    private void Replace()
+    private Unit Replace()
     {
-        Lort.Log("Replacing weather map... ", Lort.Type.Main);
         try
         {
             var mapPath = Utility.ResourcePath(@"other\mapinfotex.bmp");
-            var map = Bitmap.FromFile(mapPath) as Bitmap;
+            var map = Image.FromFile(mapPath) as Bitmap;
             var output = Path.Combine(Const.OUTPUT_PATH, "other", "mapinfotex");
             SplitToBND(
-                source: map, 
+                source: map,
                 outputFolder: output,
                 mapId: 60,
                 minX: 8,
@@ -54,37 +50,38 @@ public class MapInfoTexWorker : Worker
                 tileWidth: 256,
                 tileHeight: 256
             );
-        } catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             Lort.Log($"Failed to Replace weather map: {ex.Message}", Lort.Type.Debug);
         }
-        IsDone = true;
+
+        return Unit.Default;
     }
 
     private static readonly Regex FileRegex =
         new Regex(@"(\d{2})_(\d{2})_(\d{2})_(\d{2})", RegexOptions.Compiled);
 
-    public static Bitmap Stitch(string folderPath)
+    private Bitmap Stitch(string folderPath)
     {
         var tiles = new List<Tile>();
-
-        foreach (var file in Directory.GetFiles(folderPath, "*.dcx"))
+        Parallel.ForEach(Directory.GetFiles(folderPath, "*.dcx"), file =>
         {
             var name = Path.GetFileName(file);
             var match = FileRegex.Match(name);
 
             if (!match.Success)
-                continue;
+                return;
 
-             int mapId = int.Parse(match.Groups[1].Value);
+            int mapId = int.Parse(match.Groups[1].Value);
             int x = int.Parse(match.Groups[2].Value);
             int y = int.Parse(match.Groups[3].Value);
 
-            if (mapId != 60) continue;
+            if (mapId != 60) return;
 
             var bmp = ExtractBmpFromBnd(file);
             if (bmp == null)
-                continue;
+                return;
 
             tiles.Add(new Tile
             {
@@ -93,15 +90,15 @@ public class MapInfoTexWorker : Worker
                 Y = y,
                 Image = bmp
             });
-        }
+        });
 
         if (tiles.Count == 0)
             return null;
-
+        
         return StitchTiles(tiles);
     }
 
-    private static Bitmap ExtractBmpFromBnd(string dcxPath)
+    private Bitmap ExtractBmpFromBnd(string dcxPath)
     {
         try
         {
@@ -123,7 +120,7 @@ public class MapInfoTexWorker : Worker
         }
     }
 
-    private static Bitmap StitchTiles(List<Tile> tiles)
+    private Bitmap StitchTiles(List<Tile> tiles)
     {
         int minX = tiles.Min(t => t.X);
         int minY = tiles.Min(t => t.Y);
@@ -138,22 +135,25 @@ public class MapInfoTexWorker : Worker
 
         var final = new Bitmap(width, height);
 
+        var processed = tiles.AsParallel().Select(tile => new
+        {
+            X = (tile.X - minX) * tileWidth,
+            Y = (maxY - tile.Y) * tileHeight,
+            tile.Image
+        }).ToList();
+        
         using (var g = Graphics.FromImage(final))
         {
-            foreach (var tile in tiles)
+            foreach (var proc in processed)
             {
-                int drawX = (tile.X - minX) * tileWidth;
-
-                int drawY = (maxY - tile.Y) * tileHeight;
-
-                g.DrawImage(tile.Image, drawX, drawY, tileWidth, tileHeight);
+                g.DrawImage(proc.Image, proc.X, proc.Y, tileWidth, tileHeight);
             }
         }
 
         return final;
     }
 
-    public static void SplitToBND(
+    public void SplitToBND(
         Bitmap source,
         string outputFolder,
         int mapId,
@@ -167,61 +167,67 @@ public class MapInfoTexWorker : Worker
         Directory.CreateDirectory(outputFolder);
 
         var inputFolder = Path.Combine(Const.ELDEN_PATH, "Game", "other", "mapinfotex");
-
-        foreach (var path in Directory.GetFiles(inputFolder, "*.dcx"))
-        {
-            var name = Path.GetFileName(path);
-            var match = FileRegex.Match(name);
-
-            if (!match.Success)
-                continue;
-
-            int fileMapId = int.Parse(match.Groups[1].Value);
-            int x = int.Parse(match.Groups[2].Value);
-            int y = int.Parse(match.Groups[3].Value);
-
-            if (fileMapId != mapId)
-                continue;
-
-            int srcX = (x - minX) * tileWidth;
-            int srcY = (maxY - y) * tileHeight;
-
-            if (srcX < 0 || srcY < 0 ||
-                srcX + tileWidth > source.Width ||
-                srcY + tileHeight > source.Height)
+        
+        // process
+        var tiles = Directory.GetFiles(inputFolder, "*.dcx")
+            .Select(path =>
             {
-                continue;
-            }
+                var name = Path.GetFileName(path);
+                var match = FileRegex.Match(name);
 
-            var rect = new Rectangle(srcX, srcY, tileWidth, tileHeight);
+                if (!match.Success)
+                    return null;
 
-            using (var tile = source.Clone(rect, PixelFormat.Format24bppRgb))  // convert to 24bit to match elden ring textures
+                int fileMapId = int.Parse(match.Groups[1].Value);
+                int x = int.Parse(match.Groups[2].Value);
+                int y = int.Parse(match.Groups[3].Value);
+
+                if (fileMapId != mapId)
+                    return null;
+
+                int srcX = (x - minX) * tileWidth;
+                int srcY = (maxY - y) * tileHeight;
+                
+                if (srcX < 0 || srcY < 0 ||
+                    srcX + tileWidth > source.Width||
+                    srcY + tileHeight > source.Height)
+                {
+                    return null;
+                }
+
+                var rect = new Rectangle(srcX, srcY, tileWidth, tileHeight);
+                return new
+                {
+                    path,
+                    name,
+                    bitmap = source.Clone(rect, PixelFormat.Format24bppRgb)
+                };
+            })
+            .Where(tile => tile != null).ToList();
+        
+        Parallel.ForEach(tiles, tile =>
+        {
+            using (tile.bitmap)
             using (var ms = new MemoryStream())
             {
-                tile.Save(ms, ImageFormat.Bmp);
+                tile.bitmap.Save(ms, ImageFormat.Bmp);
                 byte[] bmpBytes = ms.ToArray();
 
-                var bnd = BND4.Read(path);
-                
+                var bnd = BND4.Read(tile.path);
+
                 bnd.Files[0].Bytes = bmpBytes;
 
                 byte[] outBytes = bnd.Write();
 
-                string outPath = Path.Combine(outputFolder, name);
+                string outPath = Path.Combine(outputFolder, tile.name);
 
                 File.WriteAllBytes(outPath, outBytes);
             }
-        }
+        });
     }
 
-    internal static void Go()
+    public Unit Go()
     {
-        MapInfoTexWorker worker = new();
-
-        while (!worker.IsDone)
-        {
-            // wait...
-            Thread.Yield();
-        }
+        return Replace();
     }
 }
