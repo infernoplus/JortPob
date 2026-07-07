@@ -1,5 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>library</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
@@ -7,7 +6,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="DirectXTexNet" />
     <PackageReference Include="FFMpegCore" />
@@ -18,13 +16,13 @@
     <PackageReference Include="Mutagen.Bethesda.Skyrim" />
     <PackageReference Include="NAudio" />
     <PackageReference Include="SharpAssimp" />
+    <PackageReference Include="SharpCompress" />
     <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="System.Speech" />
     <PackageReference Include="TeximpNet" />
     <PackageReference Include="VGAudio" />
     <PackageReference Include="XbrzSharp" />
   </ItemGroup>
-
   <ItemGroup>
     <Reference Include="ERNavmeshGenCS">
       <HintPath>DLL\ERNavmeshGenCS.dll</HintPath>
@@ -93,8 +91,11 @@
       <HintPath>DLL\ZstdNet.dll</HintPath>
     </Reference>
   </ItemGroup>
+<<<<<<< Updated upstream
 	
   <!-- Resources -->
+=======
+>>>>>>> Stashed changes
   <ItemGroup>
     <None Update="Resources\**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -103,4 +104,40 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <Target Name="CopyFileToRoot" AfterTargets="AfterBuild">
+    <Copy SourceFiles="DLL\BouncyCastle.Cryptography.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\DrSwizzler.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\ERNavmeshGen.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\ERNavmeshGenCS.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\ESDLang.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\esdtool.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\HKLib.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\HKLib.Reflection.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\HKLib.Serialization.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\HkxUpgradeLib.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\IronPython.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\IronPython.Modules.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\IronPython.SQLite.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\IronPython.Wpf.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\keystone.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\libzstd.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Microsoft.Dynamic.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Microsoft.Scripting.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Microsoft.Scripting.Metadata.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Mono.Unix.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\NativeFileDialogSharp.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Newtonsoft.Json.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\nfd.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\SoulsAssetPipeline.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\SoulsFormats.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\SoulsIds.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\StudioUtils.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\System.CodeDom.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\tes3-interop.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\tes3.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Tommy.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\WitchyFormats.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\ZstdNet.dll" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="DLL\Zydis.dll" DestinationFolder="$(OutDir)" />
+  </Target>
 </Project>

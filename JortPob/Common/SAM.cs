@@ -1,8 +1,12 @@
 ﻿using Microsoft.Scripting.Utils;
+using SharpCompress.Archives;
+using SharpCompress.Archives.Rar;
+using SharpCompress.Common;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using System.Text;
@@ -13,6 +17,8 @@ namespace JortPob.Common
 {
     public class SAM
     {
+        public static List<string> VAHashes = new();
+
         /* Creates the WWISE project. Made this a seperate call so that we don't have multiple threads trying to do this at the same time! */
         public static void CreateProject()
         {
@@ -35,6 +41,26 @@ namespace JortPob.Common
                 startInfo.ArgumentList.AddRange(["create-new-project", $"\"{projectPath}\"", "--platform", "Windows"]);
                 Utility.ExecuteProcess(startInfo);
             }
+
+            var modRoot = Directory.GetParent(Const.OUTPUT_PATH)?.Parent.FullName;
+
+            var linesArchivePath = $@"{modRoot}\lines.rar";
+            string outLinesPath = $@"{modRoot}\extracted";
+
+            Directory.CreateDirectory(outLinesPath);
+
+            using var archive = RarArchive.OpenArchive(linesArchivePath);
+
+            foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+            {
+                entry.WriteToDirectory(outLinesPath, new ExtractionOptions
+                {
+                    ExtractFullPath = true,
+                    Overwrite = true
+                });
+            }
+
+            VAHashes.AddRange(Directory.EnumerateFiles(outLinesPath + "/lines"));
         }
 
         /* DO NOT USE */
@@ -128,12 +154,13 @@ namespace JortPob.Common
 
             string lineDir;
             if (useCustom) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), npc.id, dialog.id.ToString(), hashName); }
-            else if(isCreature) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), npc.id, dialog.id.ToString(), hashName); }
+            else if (isCreature) { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), npc.id, dialog.id.ToString(), hashName); }
             else { lineDir = Path.Combine(Const.CACHE_PATH, "dialog", npc.race.ToString(), npc.sex.ToString(), dialog.id.ToString(), hashName); }
 
             string wavPath = Path.Combine(lineDir, $"{hashName}.wav");
             string wemPath = Path.Combine(lineDir, $"{hashName}.wem");
             string flitePath = Path.Combine(Environment.CurrentDirectory, "Resources", "tts", "flite.exe");
+            bool hasVA = VAHashes.Count(f => f.Contains(hashName)) > 0;
 
             string safeText;
             if (useCustom || isCreature) { safeText = MakeSafe($"{npc.id} says {line}"); }
@@ -156,32 +183,39 @@ namespace JortPob.Common
                         Directory.CreateDirectory(lineDir);
                     }
 
-                    // 2. Generate WAV (Text-to-Speech)
-                    // string ssmlLine = $"<speak>{line}<break time='500ms'/></speak>";
-                    string voice = npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
-                    string args = $"-t \"{safeText}\" -voice {voice} \"{wavPath}\"";
-
-                    ProcessStartInfo fliteStartInfo = new(flitePath)
+                    if (hasVA)
                     {
-                        Arguments = args,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true, // Added for better error capture
-                        WorkingDirectory = lineDir,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
+                        File.Copy(VAHashes.First(f => f.Contains(hashName)), wavPath, true);
+                        Lort.Log($"Line {hashName}, was replaced with a VA line", Lort.Type.Debug);
+                    }
+                    else
+                    {// 2. Generate WAV (Text-to-Speech)
+                     // string ssmlLine = $"<speak>{line}<break time='500ms'/></speak>";
+                        string voice = npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
+                        string args = $"-t \"{safeText}\" -voice {voice} \"{wavPath}\"";
 
-                    // The helper method handles the execution, timeout, kill, and exit code check
-                    Utility.ExecuteProcess(fliteStartInfo);
+                        ProcessStartInfo fliteStartInfo = new(flitePath)
+                        {
+                            Arguments = args,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true, // Added for better error capture
+                            WorkingDirectory = lineDir,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+
+                        // The helper method handles the execution, timeout, kill, and exit code check
+                        Utility.ExecuteProcess(fliteStartInfo);
+                    }
 
                     // --- 3. Convert WAV to WEM (Wwise Console) ---
-                    
+
                     string wwiseConsolePath = Path.Combine(Const.WWISE_PATH, "WwiseConsole.exe");
                     string xmlName = $"{hashName}.wsources";
                     string xmlPath = Path.Combine(lineDir, xmlName);
                     string projectDir = Path.Combine(Const.CACHE_PATH, "wwise");
                     string projectPath = Path.Combine(projectDir, "wwise.wproj");
-                    
+
                     // Create XML file
                     string xmlRaw = $"""
                         <?xml version='1.0' encoding='UTF-8'?>
@@ -211,7 +245,7 @@ namespace JortPob.Common
                     {
                         return wemPath;
                     }
-                    
+
                     // If processes succeeded but the file isn't there, something is wrong, we retry
                     throw new FileNotFoundException($"WEM file was not found after successful conversion: {wemPath}");
                 }
@@ -277,7 +311,7 @@ namespace JortPob.Common
             // A. Remove Invalid File Name Characters
             // These characters are illegal in file names on Windows and many other systems
             char[] invalidChars = Path.GetInvalidFileNameChars();
-            
+
             // Note: Path.GetInvalidFileNameChars() includes path separators ('\' and '/') 
             // but we often need to allow them if the input is a full relative/absolute path. 
             // Since the user asked to handle paths, we'll focus on the illegal chars for segments.
@@ -295,7 +329,7 @@ namespace JortPob.Common
                 }
             }
             sanitized = sb.ToString();
-            
+
             // B. Remove Directory Traversal Attempts (e.g., "name/../secret.txt")
             // This prevents an attacker from moving the file creation location.
             // This is a simple but important check. More complex validation might be needed.
