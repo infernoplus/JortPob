@@ -44,23 +44,7 @@ namespace JortPob.Common
 
             var modRoot = Directory.GetParent(Const.OUTPUT_PATH)?.Parent.FullName;
 
-            var linesArchivePath = $@"{modRoot}\lines.rar";
-            string outLinesPath = $@"{modRoot}\extracted";
-
-            Directory.CreateDirectory(outLinesPath);
-
-            using var archive = RarArchive.OpenArchive(linesArchivePath);
-
-            foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
-            {
-                entry.WriteToDirectory(outLinesPath, new ExtractionOptions
-                {
-                    ExtractFullPath = true,
-                    Overwrite = true
-                });
-            }
-
-            VAHashes.AddRange(Directory.EnumerateFiles(outLinesPath + "/lines"));
+            VAHashes.AddRange(Directory.EnumerateFiles(modRoot + "/lines"));
         }
 
         /* DO NOT USE */

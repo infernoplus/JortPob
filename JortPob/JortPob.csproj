@@ -91,11 +91,6 @@
       <HintPath>DLL\ZstdNet.dll</HintPath>
     </Reference>
   </ItemGroup>
-<<<<<<< Updated upstream
-	
-  <!-- Resources -->
-=======
->>>>>>> Stashed changes
   <ItemGroup>
     <None Update="Resources\**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

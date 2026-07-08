@@ -1,6 +1,7 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
 using JortPob.Worker;
+using Newtonsoft.Json.Linq;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
@@ -163,8 +164,12 @@ namespace JortPob
                         /* Debug voice acting using SAM */
                         string wemFile;
                         uint nxtid = (uint)(info.id + i);
-                        var lineHash = $"{line} {content.name} {content.cell.center.X} {content.cell.center.Y} {content.entity} {info.disposition} {info.id} {info.race} {info.sex}".GetMD5Hash();
-                        var hashName = $"{lineHash}+{i}";
+                        string lineHash = $"{content.race}{content.sex}{line}";
+                        if (Override.CheckCustomVoice(content.name))
+                        {
+                            lineHash = $"{content.name}{line}";
+                        }
+                        var hashName = $"{lineHash.GetMD5Hash}+{i}";
                         if (Const.USE_SAM && !Const.DEBUG_SKIP_SOUND) { wemFile = soundManager.GenerateLine(dia, info, line, hashName, content); }
                         else { wemFile = Const.DEFAULT_DIALOG_WEM; }
 

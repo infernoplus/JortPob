@@ -59,37 +59,63 @@ namespace JortPob
         public void GenerateVAManifest()
         {
             // #if DEBUG
-            var vaManifestContents = samQueue.Select(sam => new
+            var vaManifestContents = new
             {
-                line = new
-                {
-                    sam.line,
-                    sam.info.type,
-                    sam.info.race,
-                    sam.info.rank,
-                    gender = sam.info.sex,
-                    sam.info.faction,
-                    sam.info.job,
-                    sam.info.cell,
-                    sam.info.disposition,
-                    sam.info.filters
-                },
-                npc = new
-                {
-                    sam.npc.name,
-                    race = sam.npc.race,
-                    sam.npc.rank,
-                    gender = sam.npc.sex,
-                    sam.npc.faction,
-                    sam.npc.job,
-                    sam.npc.services,
-                    sam.npc.disposition,
-                    sam.npc.essential,
-                    sam.npc.reputation,
-                    entity = (int)sam.npc.entity
-                },
-                hash = sam.hashName
-            });
+                lines = samQueue
+                    .Select(sam => new
+                    {
+                        hash = sam.hashName,
+                        sam.line,
+                        sam.info.type,
+                        sam.info.race,
+                        sam.info.rank,
+                        gender = sam.info.sex,
+                        sam.info.faction,
+                        sam.info.job,
+                        sam.info.cell,
+                        sam.info.disposition,
+                        sam.info.filters
+                    })
+                    .DistinctBy(line => line.hash)
+                    .ToList(),
+
+                npcs = samQueue
+                    .GroupBy(sam => new
+                    {
+                        sam.npc.name,
+                        race = sam.npc.race,
+                        sam.npc.rank,
+                        gender = sam.npc.sex,
+                        sam.npc.faction,
+                        sam.npc.job,
+                        sam.npc.services,
+                        sam.npc.disposition,
+                        sam.npc.essential,
+                        sam.npc.reputation,
+                        entity = (int)sam.npc.entity
+                    })
+                    .Select(group => new
+                    {
+                        unique = Override.CheckCustomVoice(group.Key.name),
+                        group.Key.name,
+                        group.Key.race,
+                        group.Key.rank,
+                        group.Key.gender,
+                        group.Key.faction,
+                        group.Key.job,
+                        group.Key.services,
+                        group.Key.disposition,
+                        group.Key.essential,
+                        group.Key.reputation,
+                        group.Key.entity,
+
+                        hashes = group
+                            .Select(sam => sam.hashName)
+                            .Distinct()
+                            .ToList()
+                    })
+                    .ToList()
+            };
 
             var vaManifest = JsonConvert.SerializeObject(vaManifestContents);
             File.WriteAllText($"{Const.CACHE_PATH}/Manifest.json", vaManifest);
