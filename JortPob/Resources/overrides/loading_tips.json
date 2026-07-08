@@ -1,5 +1,14 @@
-{
-  "0": "This is 0",
-  "1": "This is 1",
-  "2": "This is 2"
-}
+[
+  {
+    "title": "0",
+    "text": "This is 0"
+  },
+  {
+    "title": "1",
+    "text": "This is 1"
+  },
+  {
+    "title": "2",
+    "text": "This is 2"
+  }
+]

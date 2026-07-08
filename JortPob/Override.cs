@@ -1,12 +1,12 @@
 ﻿using JortPob.Common;
+using Microsoft.Scripting.Utils;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 
 namespace JortPob
 {
@@ -227,7 +227,7 @@ namespace JortPob
                 .Where(file => Path.GetFileNameWithoutExtension(file).ToLower().Trim() != "hair")
                 .Select(file =>
                 {
-                    var obj = JsonConvert.DeserializeObject<FaceData>(File.ReadAllText(file));
+                    var obj = new FaceData(JsonConvert.DeserializeObject<Dictionary<string, byte>>(File.ReadAllText(file)));
                     obj.id = Path.GetFileNameWithoutExtension(file);
                     return obj;
                 })
@@ -309,6 +309,7 @@ namespace JortPob
 
         public record Hair(byte part, Hair.Color color)
         {
+            [JsonConverter(typeof(StringEnumConverterWithSpaces))]
             public enum Color
             {
                 Black, DarkBrown, Brown, LightBrown, DirtyBlonde, Blonde, White, Gray, Grey, Red
@@ -334,5 +335,33 @@ namespace JortPob
         }
 
         public record LoadingTip(string title, string text);
+
+        public class StringEnumConverterWithSpaces : JsonConverter
+        {
+            public override bool CanConvert(Type objectType)
+            {
+                return objectType.IsEnum;
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+            {
+                if (!CanConvert(objectType))
+                    throw new ArgumentException("Type cannot be converted as it is not an enum", nameof(objectType));
+
+                if (reader.Value is not string curVal)
+                    throw new Exception("Reader value is not a string");
+
+                curVal = curVal.Replace(" ", "");
+                if (!Enum.TryParse(objectType, curVal, true, out var enumVal))
+                    throw new Exception($"Cannot convert {reader.Value} to type {objectType.Name}");
+
+                return enumVal;
+            }
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                throw new NotImplementedException(); // This should only be used for reading, not writing
+            }
+        }
     }
 }

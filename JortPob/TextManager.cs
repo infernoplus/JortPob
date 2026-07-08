@@ -16,7 +16,7 @@ namespace JortPob
 
         private Dictionary<TextType, FMG> menu, item;
 
-        private volatile int nextTopicId, nextNpcNameId, nextActionButtonId, nextLocationId, nextMenuId, nextTutorial, nextMapEventText, nextWeaponEffectId/*, nextLoadScreenTipId*/;
+        private volatile int nextTopicId, nextNpcNameId, nextActionButtonId, nextLocationId, nextMenuId, nextTutorial, nextMapEventText, nextWeaponEffectId;
 
         public TextManager()
         {
@@ -28,7 +28,6 @@ namespace JortPob
             nextTutorial = 500000;
             nextMapEventText = 20209000;
             nextWeaponEffectId = 7000;
-            //nextLoadScreenTipId = 300;
 
             Dictionary<TextType, FMG> LoadMsgBnd(string path)
             {
