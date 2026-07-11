@@ -164,7 +164,7 @@ namespace JortPob
             ];
             foreach(InteriorGroup group in layout.Interiors)
             {
-                if (group.IsEmpty()) { continue; }
+                if (group.IsEmpty) { continue; }
                 if (maps.Contains(group.map)) { continue; }
                 maps.Add(group.map);
             }

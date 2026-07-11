@@ -7,15 +7,10 @@ namespace JortPob
 {
     /* BigTile is a 2x2 grid of Tiles. Sort of like an LOD type thing. */
     [DebuggerDisplay("Big m{map}_{coordinate.x}_{coordinate.y}_{block} :: [{cells.Count}] Cells")]
-    public class BigTile : BaseTile
+    public class BigTile(int m, int x, int y, int b) : BaseTile(m, x, y, b)
     {
         public HugeTile huge;
-        public List<Tile> tiles;
-
-        public BigTile(int m, int x, int y, int b) : base(m, x, y, b)
-        {
-            tiles = new();
-        }
+        public List<Tile> tiles = [];
 
         /* Checks ABSOLUTE POSITION! This is the position of an object from the ESM accounting for the layout offset! */
         public bool PositionInside(Vector3 position)

@@ -1,5 +1,4 @@
-﻿using IronPython.Compiler.Ast;
-using JortPob.Common;
+﻿using JortPob.Common;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -10,16 +9,10 @@ namespace JortPob
 {
     /* HugeTile is a 4x4 grid of Tiles. Sort of like an LOD type thing. HugeTile contains 4 big tiles & 16 regular tiles. */
     [DebuggerDisplay("Huge m{map}_{coordinate.x}_{coordinate.y}_{block} :: [{cells.Count}] Cells")]
-    public class HugeTile : BaseTile
+    public class HugeTile(int m, int x, int y, int b) : BaseTile(m, x, y, b)
     {
-        public List<BigTile> bigs;
-        public List<Tile> tiles;
-
-        public HugeTile(int m, int x, int y, int b) : base(m, x, y, b)
-        {
-            bigs = new();
-            tiles = new();
-        }
+        public List<BigTile> bigs = [];
+        public List<Tile> tiles = [];
 
         /* Checks ABSOLUTE POSITION! This is the position of an object from the ESM accounting for the layout offset! */
         public bool PositionInside(Vector3 position)
@@ -168,7 +161,7 @@ namespace JortPob
                 else { regions.Add(r, 1); }
             }
 
-            if (regions.Count() <= 0) { return "Default Region"; } // no regions set so guh
+            if (regions.Count <= 0) { return "Default Region"; } // no regions set so guh
 
             string most = regions.Keys.First();
             foreach (KeyValuePair<string, int> kvp in regions)

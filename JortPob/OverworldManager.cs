@@ -107,7 +107,7 @@ namespace JortPob
                         /* Grab tile */
                         int[] msbid = new int[] { start[0], start[1] + x, start[2] + y, start[3] };
                         HugeTile tile = layout.GetHugeTile(new Int2(msbid[1], msbid[2]));
-                        if (tile == null || tile.IsEmpty()) { continue; } // skip empty or unreal
+                        if (tile == null || tile.IsEmpty) { continue; } // skip empty or unreal
 
                         /* Create envmap texture file */
                         EnvManager.CreateEnvMaps(tile, id);

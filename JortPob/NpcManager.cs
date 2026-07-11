@@ -110,9 +110,6 @@ namespace JortPob
             return id;
         }
 
-        public int GetESD(BaseTile tile, MSBE msb, CharacterContent content) { return GetESD(tile.IdList(), msb, content); }
-        public int GetESD(InteriorGroup group, MSBE msb, CharacterContent content) { return GetESD(group.IdList(), msb, content); }
-
         /* Creates an ESD for the given instance of a npc */
         /* ESDs are generally 1 to 1 with characters but there are some exceptions like guards */
         public int GetESD(int[] msbIdList, MSBE msb, CharacterContent content)

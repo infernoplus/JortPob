@@ -3,45 +3,52 @@ using JortPob.Scripts;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Packaging;
 using System.Linq;
 using System.Numerics;
 using static JortPob.Layout;
 
 namespace JortPob
 {
-    public class InteriorGroup
+    public class InteriorGroup(int m, int a, int u, int b) : IMSBCompilableGroup
     {
-        public readonly int map;
-        public readonly int area;
-        public readonly int unk;
-        public readonly int block;
+        public int map { get; init; } = m;
+        public int area { get; init; } = a;
+        public int unk { get; init; } = u;
+        public int block { get; init; } = b;
 
-        public readonly List<Chunk> chunks;
+        public readonly List<Chunk> chunks = [];
 
-        public InteriorGroup(int m, int a, int u, int b)
+        public Int2 coordinate
         {
-            /* Interior Data */
-            map = m;
-            area = a;
-            unk = u;
-            block = b;
-
-            chunks = new();
+            get
+            {
+                return new Int2(area, unk);
+            }
+        }
+        public bool IsInterior { get; } = true;
+        public List<IMSBCompilableChunk> Chunks
+        {
+            get
+            {
+                return [.. chunks.Cast<IMSBCompilableChunk>()];
+            }
         }
 
         public int[] IdList()
         {
-            return new int[] { map, area, unk, block };
+            return [map, area, unk, block];
         }
 
-        public bool IsEmpty()
+        public bool IsEmpty
         {
-            foreach(Chunk chunk in chunks)
+            get
             {
-                if (chunk.assets.Count() > 0) { return false; }
+                foreach(Chunk chunk in chunks)
+                {
+                    if (chunk.assets.Count > 0) { return false; }
+                }
+                return true;
             }
-            return true;
         }
 
         public Paramanager.WeatherData GetWeather()
@@ -69,7 +76,7 @@ namespace JortPob
                         Chunk c = chunks[i];
                         z_calc = Math.Max(z_calc, c.root.Z + c.bounds.Z);
                     }
-                    z_calc = z_calc + bounds.Z;
+                    z_calc += bounds.Z;
                 }
                 else
                 {
@@ -95,31 +102,50 @@ namespace JortPob
             }
         }
 
-        public class Chunk
+        public class Chunk : IMSBCompilableChunk
         {
             public readonly InteriorGroup group;
             public readonly Cell cell;
+            public List<Cell> cells
+            {
+                get { return [cell]; }
+            }
 
-            public readonly Vector3 root;
-            public readonly Vector3 bounds, offset; // size from center
+            public Vector3 root { get; init; }
+            public Vector3 bounds { get; init; }
+            public Vector3 offset { get; init; } // size from center
 
-            public Obj nav;  // navmesh repersentation of this msb chunk
-            public List<PathGridPoint> paths; // mw uses these for nav. we are only using them for wander positions
+            public Obj nav = new();  // navmesh representation of this msb chunk
+            public List<Layout.PathGridPoint> paths { get; init; } = []; // mw uses these for nav. we are only using them for wander positions
 
-            public readonly List<AssetContent> assets;
-            public readonly List<DoorContent> doors;
-            public readonly List<LightContent> lights;
-            public readonly List<EmitterContent> emitters;
-            public readonly List<CreatureContent> creatures;
-            public readonly List<NpcContent> npcs;
-            public readonly List<ContainerContent> containers;
-            public readonly List<PickableContent> pickables;
-            public readonly List<ItemContent> items;
+            public List<AssetContent> assets { get; init; } = [];
+            public List<DoorContent> doors { get; init; } = [];
+            public List<LightContent> lights { get; init; } = [];
+            public List<EmitterContent> emitters { get; init; } = [];
+            public List<CreatureContent> creatures { get; init; } = [];
+            public List<NpcContent> npcs { get; init; } = [];
+            public List<ContainerContent> containers { get; init; } = [];
+            public List<PickableContent> pickables { get; init; } = [];
+            public List<ItemContent> items { get; init; } = [];
 
-            public readonly List<Layout.WarpDestination> warps; // end points for load doors in other cells. also used by travel npcs
-            public readonly List<Layout.ScriptedPosition> positions; // used by scripts to target locations EX: 'PositionCell'
-            public readonly List<TravelPoint> travels; // positions directly referenced in AiPackages
+            public List<Layout.WarpDestination> warps { get; init; } = []; // end points for load doors in other cells. also used by travel npcs
+            public List<Layout.ScriptedPosition> positions { get; init; } = []; // used by scripts to target locations EX: 'PositionCell'
+            public List<Layout.TravelPoint> travels { get; init; } = []; // positions directly referenced in AiPackages
 
+            public bool IsInterior { get; } = true;
+
+            public List<Layout.MapPoint> points
+            {
+                get
+                {
+                    // position, radius, and discovered are not used for anything here so they are 0 or null.
+                    MapPoint mp = new(cell.name, new Vector3(0), 0, false, null, MapPoint.Icon.None)
+                    {
+                        relative = root
+                    };
+                    return [mp];
+                }
+            }
             public Chunk(ScriptManager scriptManager, Cache cache, InteriorGroup group, Cell cell, Vector3 root)
             {
                 this.group = group;
@@ -129,37 +155,20 @@ namespace JortPob
                 bounds = cell.boundsMax - cell.boundsMin;
                 offset = Vector3.Lerp(cell.boundsMin, cell.boundsMax, .5f);
 
-                nav = new();
-                paths = new();
-                travels = new();
-
-                assets = new();
-                doors = new();
-                emitters = new();
-                lights = new();
-                creatures = new();
-                npcs = new();
-                containers = new();
-                pickables = new();
-                items = new();
-
-                warps = new();
-                positions = new();
-
                 /* Add content */
                 foreach (Content content in cell.contents)
                 {
-                    content.relative = content.position + root - offset;
+                    content.relative = content.position + this.root - offset;
                     AddContent(cache,content);
                 }
 
                 /* Add cells pathgrid to the tile */
                 BaseScript script = scriptManager.GetScript(group);
-                for (int i=0;i<cell.paths.Count();i++)
+                for (int i=0;i<cell.paths.Count;i++)
                 {
                     Vector3 path = cell.paths[i];
-                    string name = $"PathGrid_{group.map:D2}{group.area:D2}{group.unk:D2}_{group.chunks.Count():D2}_{i:D4}";
-                    Vector3 relative = path + root - offset;
+                    string name = $"PathGrid_{group.map:D2}{group.area:D2}{group.unk:D2}_{group.chunks.Count:D2}_{i:D4}";
+                    Vector3 relative = path + this.root - offset;
                     Layout.PathGridPoint point = new(name, relative, script.CreateEntity(Script.EntityType.Region, $"PathGridPoint"));
                     paths.Add(point);
                 }
@@ -198,8 +207,8 @@ namespace JortPob
             {
                 Vector3 relative = position + root - offset;
                 Vector3 rotation = new Vector3(0, rot, 0); // @TODO: THIS IS WRONG!
-                uint region = script.CreateEntity(Script.EntityType.Region, $"ScriptedPosition:Region:{position.ToString()}");
-                uint player = script.CreateEntity(Script.EntityType.Region, $"ScriptedPosition:Player:{position.ToString()}");
+                uint region = script.CreateEntity(Script.EntityType.Region, $"ScriptedPosition:Region:{position}");
+                uint player = script.CreateEntity(Script.EntityType.Region, $"ScriptedPosition:Player:{position}");
                 positions.Add(new(position, relative, rotation, region, player, group.map, group.area, group.unk, group.block));
             }
 
@@ -250,8 +259,8 @@ namespace JortPob
             public void AddTravelPoint(BaseScript script, Vector3 point, float radius = -1f)
             {
                 Vector3 relative = point + root - offset;
-                uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{point.ToString()}");
-                TravelPoint travel = new($"Travel_{group.map:D2}{group.area:D2}{group.unk:D2}_{SafeName()}_{travels.Count():D4}", point, relative, radius == -1f ? Const.PATH_REGION_SIZE : radius, region);
+                uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{point}");
+                TravelPoint travel = new($"Travel_{group.map:D2}{group.area:D2}{group.unk:D2}_{SafeName()}_{travels.Count:D4}", point, relative, radius == -1f ? Const.PATH_REGION_SIZE : radius, region);
                 travels.Add(travel);
             }
 
@@ -266,8 +275,8 @@ namespace JortPob
                         if (package.type == CharacterContent.AiPackage.Type.Travel)
                         {
                             Vector3 relative = package.position + root - offset;
-                            uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{package.position.ToString()}");
-                            TravelPoint travel = new($"Travel_{group.map:D2}{group.area:D2}{group.unk:D2}_{SafeName()}_{travels.Count():D4}", package.position, relative, Const.PATH_REGION_SIZE, region);
+                            uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{package.position}");
+                            TravelPoint travel = new($"Travel_{group.map:D2}{group.area:D2}{group.unk:D2}_{SafeName()}_{travels.Count:D4}", package.position, relative, Const.PATH_REGION_SIZE, region);
                             travels.Add(travel);
                         }
                     }

@@ -678,12 +678,12 @@ namespace JortPob
             // Exterior msbs
             foreach (Tile tile in layout.Tiles)
             {
-                if (tile.IsEmpty()) { continue; } // skip empty tiles
+                if (tile.IsEmpty) { continue; } // skip empty tiles
 
                 string region = tile.GetRegion();
                 WeatherData weatherData = GetWeatherData(region);
 
-                int id = int.Parse($"60{tile.coordinate.x.ToString("D2")}{tile.coordinate.y.ToString("D2")}00");
+                int id = int.Parse($"60{tile.coordinate.x:D2}{tile.coordinate.y:D2}00");
 
 
                 /* MapInfoParam */ // controls sky and weather and bgm and other stuff
@@ -701,7 +701,7 @@ namespace JortPob
             // Interior msbs
             foreach (InteriorGroup group in layout.Interiors)
             {
-                if (group.IsEmpty()) { continue; } // skip empty group
+                if (group.IsEmpty) { continue; } // skip empty group
 
                 WeatherData weatherData = group.GetWeather();
 
@@ -1176,23 +1176,35 @@ namespace JortPob
         }
 
         /* Generate or get an already generated worldmappoint to be used as a placename. Not for actual map icons! */
-        public int GenerateWorldMapPoint(BaseTile tile, Layout.MapPoint point, int id)
+        public int GenerateWorldMapPoint(IMSBCompilableGroup group, Layout.MapPoint point, int id)
         {
             FsParam worldMapPointParam = param[ParamType.WorldMapPointParam];
             FsParam.Row row = CloneRow(worldMapPointParam[1], $"{point.name} placename", id); // 1 is our template
 
             int textId = textManager.AddLocation(point.name);
 
-            row["eventFlagId"].Value.SetValue(point.discovered.id);
+                        
+            if (group.IsInterior)
+            {
+                row["eventFlagId"].Value.SetValue(6001u);    // always on event flag
+                row["dispMask00"].Value.SetValue((byte)0);   // never show on map
+                row["dispMask01"].Value.SetValue((byte)0);   // never show on map
+                row["dispMask02"].Value.SetValue((byte)0);   // never show on map
+            }
+            else
+            {
+                row["eventFlagId"].Value.SetValue(point.discovered.id);
+                row["dispMask00"].Value.SetValue((byte)1);
+                row["dispMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
+                row["selectMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
+            }
+
             row["iconId"].Value.SetValue((ushort)point.icon);
             row["altIconId"].Value.SetValue((ushort)point.icon);
-            row["dispMask00"].Value.SetValue((byte)1);
-            row["dispMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
-            row["selectMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
 
-            row["areaNo"].Value.SetValue((byte)tile.map);
-            row["gridXNo"].Value.SetValue((byte)tile.coordinate.x);
-            row["gridZNo"].Value.SetValue((byte)tile.coordinate.y);
+            row["areaNo"].Value.SetValue((byte)group.map);
+            row["gridXNo"].Value.SetValue((byte)group.coordinate.x);
+            row["gridZNo"].Value.SetValue((byte)group.coordinate.y);
 
             row["posX"].Value.SetValue(point.relative.X);
             row["posY"].Value.SetValue(point.relative.Y);
@@ -1209,46 +1221,6 @@ namespace JortPob
             row["textType3"].Value.SetValue((byte)0);
 
             row["entryFEType"].Value.SetValue((byte)(point.important?0:2));  // 0 shows a area title when you walk into it, 2 does not
-
-            AddOrReplaceRow(worldMapPointParam, row);
-
-            return id;
-        }
-
-        /* Same as above but for interiors */
-        public int GenerateWorldMapPoint(InteriorGroup group, Cell cell, Vector3 relative, int id)
-        {
-            FsParam worldMapPointParam = param[ParamType.WorldMapPointParam];
-            FsParam.Row row = CloneRow(worldMapPointParam[1], $"{cell.name} placename", id); // 1 is our template
-
-            int textId = textManager.AddLocation(cell.name);
-
-            row["eventFlagId"].Value.SetValue(6001u);  // always on event flag
-            row["iconId"].Value.SetValue((ushort)0);
-            row["altIconId"].Value.SetValue((ushort)0);
-            row["dispMask00"].Value.SetValue((byte)0);   // never show on map
-            row["dispMask01"].Value.SetValue((byte)0);   // never show on map
-            row["dispMask02"].Value.SetValue((byte)0);   // never show on map
-
-            row["areaNo"].Value.SetValue((byte)group.map);
-            row["gridXNo"].Value.SetValue((byte)group.area);
-            row["gridZNo"].Value.SetValue((byte)group.unk);
-
-            row["posX"].Value.SetValue(relative.X);
-            row["posY"].Value.SetValue(relative.Y);
-            row["posZ"].Value.SetValue(relative.Z);
-
-            row["textId1"].Value.SetValue(textId);
-
-            row["textEnableFlag2Id3"].Value.SetValue(0);
-            row["textDisableFlag2Id3"].Value.SetValue(0);
-
-            row["textId3"].Value.SetValue(-1);
-            row["textEnableFlagId3"].Value.SetValue((uint)0);
-            row["textDisableFlagId3"].Value.SetValue((uint)0);
-            row["textType3"].Value.SetValue((byte)0);
-
-            row["entryFEType"].Value.SetValue((byte)0);
 
             AddOrReplaceRow(worldMapPointParam, row);
 

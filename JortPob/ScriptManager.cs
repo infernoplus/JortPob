@@ -56,16 +56,11 @@ namespace JortPob
             return s;
         }
 
-        public BaseScript GetScript(BaseTile tile)
+        public BaseScript GetScript(IMSBCompilableGroup group)
         {
-            if (tile.GetType() != typeof(Tile)) { return common; } // big/huge tiles return scriptcommon as their area scripts.
+            if (!group.IsInterior && group.GetType() != typeof(Tile)) { return common; } // big/huge tiles return scriptcommon as their area scripts.
 
-            return GetScript(tile.map, tile.coordinate.x, tile.coordinate.y, tile.block);
-        }
-
-        public BaseScript GetScript(InteriorGroup group)
-        {
-            return GetScript(group.map, group.area, group.unk, group.block);
+            return GetScript(group.map, group.coordinate.x, group.coordinate.y, group.block);
         }
 
         /* Supports phased routing */
