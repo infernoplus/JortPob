@@ -22,7 +22,7 @@ namespace JortPob.Common
         public static List<string> VAHashes = new();
         private static readonly Dictionary<string, string> VAByHash = new(StringComparer.OrdinalIgnoreCase);
 
-        public record GenerateAltEntry(
+        public record GenerateEntry(
             Dialog.DialogRecord Dialog,
             Dialog.DialogInfoRecord Info,
             string Line,
@@ -46,14 +46,14 @@ namespace JortPob.Common
 
         private sealed class BatchJob
         {
-            public BatchJob(GenerateAltEntry entry, IReadOnlyList<GenerateAltEntry> destinations)
+            public BatchJob(GenerateEntry entry, IReadOnlyList<GenerateEntry> destinations)
             {
                 Entry = entry;
                 Destinations = destinations;
             }
 
-            public GenerateAltEntry Entry { get; }
-            public IReadOnlyList<GenerateAltEntry> Destinations { get; }
+            public GenerateEntry Entry { get; }
+            public IReadOnlyList<GenerateEntry> Destinations { get; }
             public string BatchWavPath { get; set; }
             public bool Completed { get; set; }
         }
@@ -81,14 +81,11 @@ namespace JortPob.Common
                 Utility.ExecuteProcess(startInfo);
             }
 
-            var modRoot = Directory.GetParent(Const.OUTPUT_PATH)?.Parent.FullName;
-            var vaDirectory = Path.Combine(modRoot, "lines");
-
             VAHashes.Clear();
             VAByHash.Clear();
-            if (Directory.Exists(vaDirectory))
+            if (Directory.Exists(Const.VA_LINES_PATH))
             {
-                foreach (string path in Directory.EnumerateFiles(vaDirectory))
+                foreach (string path in Directory.EnumerateFiles(Const.VA_LINES_PATH))
                 {
                     VAHashes.Add(path);
                     string hash = Path.GetFileNameWithoutExtension(path);
@@ -103,7 +100,7 @@ namespace JortPob.Common
             return VAHashes.FirstOrDefault(f => f.Contains(hashName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static string GetSafeText(GenerateAltEntry entry)
+        private static string GetSafeText(GenerateEntry entry)
         {
             if (entry.UseCustomVoice || entry.IsCreature) { return MakeSafe($"{entry.Npc.id} says {entry.Line}"); }
             return MakeSafe($"{entry.Npc.race} says {entry.Line}");
@@ -174,7 +171,7 @@ namespace JortPob.Common
 
         private static void CopyBatchResult(BatchJob job, string generatedWem)
         {
-            foreach (GenerateAltEntry destination in job.Destinations)
+            foreach (GenerateEntry destination in job.Destinations)
             {
                 Directory.CreateDirectory(destination.LineDir);
                 File.Copy(job.BatchWavPath, destination.WavPath, true);
@@ -197,7 +194,7 @@ namespace JortPob.Common
             string projectPath = Path.Combine(Const.CACHE_PATH, "wwise", "wwise.wproj");
 
             var entries = datas
-                .Select(data => new GenerateAltEntry(data.dialog, data.info, data.line, data.hashName, data.npc))
+                .Select(data => new GenerateEntry(data.dialog, data.info, data.line, data.hashName, data.npc))
                 .ToList();
 
             var jobs = entries
@@ -205,7 +202,7 @@ namespace JortPob.Common
                 .Select(group => new BatchJob(group.First(), group.ToList()))
                 .Where(job =>
                     !File.Exists(job.Entry.WemPath)
-                    || (Const.REPLACE_VA_LINES_ONLY && job.Entry.HasVA))
+                    || (Const.DEBUG_REPLACE_VA_LINES_ONLY && job.Entry.HasVA))
                 .ToList();
 
             if (jobs.Count == 0) { return; }
@@ -391,7 +388,7 @@ namespace JortPob.Common
             // Use a loop to handle retries
             for (int retry = 0; retry < Const.SAM_MAX_RETRY; retry++)
             {
-                if (File.Exists(wemPath) && !(Const.REPLACE_VA_LINES_ONLY && hasVA))
+                if (File.Exists(wemPath) && !(Const.DEBUG_REPLACE_VA_LINES_ONLY && hasVA))
                 {
                     // Audio file already exists in cache, no need to retry
                     return wemPath;

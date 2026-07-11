@@ -32,7 +32,9 @@ namespace JortPob.Common
         public static string SKYRIM_PATH { get; private set; }
 
         [Setting]
-        private static string SKYRIM_EDITION { get; set; }
+        public static string SKYRIM_EDITION { get; private set; }
+
+        public static string VA_LINES_PATH { get; private set; }
 
         public static GameRelease SKYRIM_EDITION_ENUM
         {
@@ -40,11 +42,11 @@ namespace JortPob.Common
             {
                 switch (SKYRIM_EDITION)
                 {
-                    case "SE": 
+                    case "SE":
                         return GameRelease.SkyrimSE;
-                    case "SEGOG": 
+                    case "SEGOG":
                         return GameRelease.SkyrimSEGog;
-                    case "VR": 
+                    case "VR":
                         return GameRelease.SkyrimVR;
                     case "LE":
                     default:
@@ -276,7 +278,7 @@ namespace JortPob.Common
 
         /// When enabled, existing generated WEMs are rebuilt only for lines with a matching VA WAV.
         [Setting(DefaultValue = false)]
-        public static bool REPLACE_VA_LINES_ONLY { get; private set; }
+        public static bool DEBUG_REPLACE_VA_LINES_ONLY { get; private set; }
 
         public static readonly string DEFAULT_DIALOG_WEM = Utility.ResourcePath(@"sound\page_turn.wem");
 
@@ -337,7 +339,7 @@ namespace JortPob.Common
         [Setting(DefaultValue = true)]
         public static bool DEBUG_DISCARD_ANIMATED_DOORS { get; private set; }
 
-        [Setting] 
+        [Setting]
         public static bool DEBUG_SKIP_FMG_PARAM_SORTING { get; private set; }
 
         /// skip building dialog AND scripts
