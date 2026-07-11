@@ -11,6 +11,8 @@ using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Security;
+using System.Threading.Tasks;
 
 /* This exists for me to test if full voice acting will work properly before we get voice actors involved */
 namespace JortPob.Common
@@ -18,6 +20,43 @@ namespace JortPob.Common
     public class SAM
     {
         public static List<string> VAHashes = new();
+        private static readonly Dictionary<string, string> VAByHash = new(StringComparer.OrdinalIgnoreCase);
+
+        public record GenerateAltEntry(
+            Dialog.DialogRecord Dialog,
+            Dialog.DialogInfoRecord Info,
+            string Line,
+            string HashName,
+            CharacterContent Npc)
+        {
+            public bool UseCustomVoice => Override.CheckCustomVoice(Npc.id);
+            public bool IsCreature => Npc.race == CharacterContent.Race.Creature;
+
+            public string LineDir => UseCustomVoice
+                ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Custom.ToString(), Npc.id, Dialog.id.ToString(), HashName)
+                : IsCreature
+                    ? Path.Combine(Const.CACHE_PATH, "dialog", CharacterContent.Race.Creature.ToString(), Npc.id, Dialog.id.ToString(), HashName)
+                    : Path.Combine(Const.CACHE_PATH, "dialog", Npc.race.ToString(), Npc.sex.ToString(), Dialog.id.ToString(), HashName);
+
+            public string WavPath => Path.Combine(LineDir, $"{HashName}.wav");
+            public string WemPath => Path.Combine(LineDir, $"{HashName}.wem");
+            public string VAPath => FindVAPath(HashName);
+            public bool HasVA => VAPath != null;
+        }
+
+        private sealed class BatchJob
+        {
+            public BatchJob(GenerateAltEntry entry, IReadOnlyList<GenerateAltEntry> destinations)
+            {
+                Entry = entry;
+                Destinations = destinations;
+            }
+
+            public GenerateAltEntry Entry { get; }
+            public IReadOnlyList<GenerateAltEntry> Destinations { get; }
+            public string BatchWavPath { get; set; }
+            public bool Completed { get; set; }
+        }
 
         /* Creates the WWISE project. Made this a seperate call so that we don't have multiple threads trying to do this at the same time! */
         public static void CreateProject()
@@ -43,8 +82,206 @@ namespace JortPob.Common
             }
 
             var modRoot = Directory.GetParent(Const.OUTPUT_PATH)?.Parent.FullName;
+            var vaDirectory = Path.Combine(modRoot, "lines");
 
-            VAHashes.AddRange(Directory.EnumerateFiles(modRoot + "/lines"));
+            VAHashes.Clear();
+            VAByHash.Clear();
+            if (Directory.Exists(vaDirectory))
+            {
+                foreach (string path in Directory.EnumerateFiles(vaDirectory))
+                {
+                    VAHashes.Add(path);
+                    string hash = Path.GetFileNameWithoutExtension(path);
+                    if (!string.IsNullOrWhiteSpace(hash)) { VAByHash.TryAdd(hash, path); }
+                }
+            }
+        }
+
+        private static string FindVAPath(string hashName)
+        {
+            if (VAByHash.TryGetValue(hashName, out string path)) { return path; }
+            return VAHashes.FirstOrDefault(f => f.Contains(hashName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string GetSafeText(GenerateAltEntry entry)
+        {
+            if (entry.UseCustomVoice || entry.IsCreature) { return MakeSafe($"{entry.Npc.id} says {entry.Line}"); }
+            return MakeSafe($"{entry.Npc.race} says {entry.Line}");
+        }
+
+        private static void PrepareBatchWav(BatchJob job, string batchDirectory, string flitePath)
+        {
+            string batchWavPath = Path.Combine(batchDirectory, $"{job.Entry.HashName}.wav");
+            job.BatchWavPath = batchWavPath;
+
+            if (File.Exists(batchWavPath)) { return; }
+
+            string vaPath = job.Entry.VAPath;
+            if (vaPath != null)
+            {
+                File.Copy(vaPath, batchWavPath, true);
+                return;
+            }
+
+            if (File.Exists(job.Entry.WavPath))
+            {
+                File.Copy(job.Entry.WavPath, batchWavPath, true);
+                return;
+            }
+
+            string voice = job.Entry.Npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";
+            string args = $"-t \"{GetSafeText(job.Entry)}\" -voice {voice} \"{batchWavPath}\"";
+            ProcessStartInfo fliteStartInfo = new(flitePath)
+            {
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = batchDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            Utility.ExecuteProcess(fliteStartInfo);
+
+            if (!File.Exists(batchWavPath))
+            {
+                throw new FileNotFoundException($"FLite produced no WAV for {job.Entry.HashName}", batchWavPath);
+            }
+        }
+
+        private static string CreateBatchSources(string batchDirectory, IReadOnlyList<BatchJob> batch)
+        {
+            string xmlPath = Path.Combine(batchDirectory, "batch.wsources");
+            var sources = batch.Select(job =>
+                $"    <Source Path=\"{SecurityElement.Escape(Path.GetFileName(job.BatchWavPath))}\" Conversion=\"Vorbis Quality High\" />");
+            string xml = $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <ExternalSourcesList SchemaVersion="1" Root="{SecurityElement.Escape(batchDirectory)}">
+                {string.Join(Environment.NewLine, sources)}
+                </ExternalSourcesList>
+                """;
+            File.WriteAllText(xmlPath, xml);
+            return xmlPath;
+        }
+
+        private static string FindBatchWem(string batchDirectory, string hashName)
+        {
+            string direct = Path.Combine(batchDirectory, $"{hashName}.wem");
+            if (File.Exists(direct)) { return direct; }
+
+            string platformOutput = Path.Combine(batchDirectory, "Windows", $"{hashName}.wem");
+            return File.Exists(platformOutput) ? platformOutput : null;
+        }
+
+        private static void CopyBatchResult(BatchJob job, string generatedWem)
+        {
+            foreach (GenerateAltEntry destination in job.Destinations)
+            {
+                Directory.CreateDirectory(destination.LineDir);
+                File.Copy(job.BatchWavPath, destination.WavPath, true);
+                File.Copy(generatedWem, destination.WemPath, true);
+
+                if (destination.HasVA)
+                {
+                    Lort.Log($"Line {destination.HashName}, was replaced with a VA line", Lort.Type.Debug);
+                }
+            }
+
+            job.Completed = true;
+        }
+
+        public static void GenerateAltBatch(List<SoundManager.SAMData> datas)
+        {
+            string batchDirectory = Path.Combine(Const.CACHE_PATH, $"batch_temp_{Environment.ProcessId}");
+            string flitePath = Path.Combine(Environment.CurrentDirectory, "Resources", "tts", "flite.exe");
+            string wwiseConsolePath = Path.Combine(Const.WWISE_PATH, "WwiseConsole.exe");
+            string projectPath = Path.Combine(Const.CACHE_PATH, "wwise", "wwise.wproj");
+
+            var entries = datas
+                .Select(data => new GenerateAltEntry(data.dialog, data.info, data.line, data.hashName, data.npc))
+                .ToList();
+
+            var jobs = entries
+                .GroupBy(entry => entry.HashName, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new BatchJob(group.First(), group.ToList()))
+                .Where(job =>
+                    !File.Exists(job.Entry.WemPath)
+                    || (Const.REPLACE_VA_LINES_ONLY && job.Entry.HasVA))
+                .ToList();
+
+            if (jobs.Count == 0) { return; }
+
+            if (Directory.Exists(batchDirectory)) { Directory.Delete(batchDirectory, true); }
+            Directory.CreateDirectory(batchDirectory);
+            try
+            {
+                Stopwatch totalTimer = Stopwatch.StartNew();
+                Lort.Log($"Generating {datas.Count} WEMs ({jobs.Count} unique pending jobs)...", Lort.Type.Main);
+                Lort.NewTask("Generating WAVs", jobs.Count);
+
+                Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Const.THREAD_COUNT) }, job =>
+                {
+                    PrepareBatchWav(job, batchDirectory, flitePath);
+                    Lort.TaskIterate();
+                });
+                Lort.Log($"Prepared {jobs.Count} WAV jobs in {totalTimer.Elapsed}", Lort.Type.Debug);
+
+                var remaining = jobs;
+                int batchSize = 1000;
+                int maxPasses = Math.Max(1, Const.SAM_MAX_RETRY);
+                Lort.NewTask("Converting WEM batches", (int)Math.Ceiling(remaining.Count / (double)batchSize) * maxPasses);
+
+                for (int pass = 0; pass < maxPasses && remaining.Any(job => !job.Completed); pass++)
+                {
+                    foreach (IReadOnlyList<BatchJob> batch in remaining.Where(job => !job.Completed).Chunk(batchSize))
+                    {
+                        string sourcesPath = CreateBatchSources(batchDirectory, batch);
+                        ProcessStartInfo convertInfo = new(wwiseConsolePath)
+                        {
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            WorkingDirectory = batchDirectory,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        convertInfo.ArgumentList.AddRange([
+                            "convert-external-source", projectPath,
+                            "--source-file", sourcesPath,
+                            "--output", "Windows", batchDirectory,
+                            "--quiet"
+                        ]);
+                        try
+                        {
+                            Utility.ExecuteProcess(convertInfo, -1);
+                        }
+                        catch (Exception ex)
+                        {
+                            Lort.Log($"Wwise batch failed on pass {pass + 1}: {ex.Message}", Lort.Type.Debug);
+                            Lort.TaskIterate();
+                            continue;
+                        }
+
+                        foreach (BatchJob job in batch)
+                        {
+                            string generatedWem = FindBatchWem(batchDirectory, job.Entry.HashName);
+                            if (generatedWem != null) { CopyBatchResult(job, generatedWem); }
+                        }
+
+                        Lort.TaskIterate();
+                    }
+                }
+
+                var failed = jobs.Where(job => !job.Completed).ToList();
+                if (failed.Count > 0)
+                {
+                    throw new Exception($"Failed to generate {failed.Count} WEM jobs after {maxPasses} passes.");
+                }
+
+                Lort.Log($"Completed WEM generation in {totalTimer.Elapsed}", Lort.Type.Main);
+            }
+            finally
+            {
+                if (Directory.Exists(batchDirectory)) { Directory.Delete(batchDirectory, true); }
+            }
         }
 
         /* DO NOT USE */
@@ -144,7 +381,8 @@ namespace JortPob.Common
             string wavPath = Path.Combine(lineDir, $"{hashName}.wav");
             string wemPath = Path.Combine(lineDir, $"{hashName}.wem");
             string flitePath = Path.Combine(Environment.CurrentDirectory, "Resources", "tts", "flite.exe");
-            bool hasVA = VAHashes.Count(f => f.Contains(hashName)) > 0;
+            string vaPath = FindVAPath(hashName);
+            bool hasVA = vaPath != null;
 
             string safeText;
             if (useCustom || isCreature) { safeText = MakeSafe($"{npc.id} says {line}"); }
@@ -153,7 +391,7 @@ namespace JortPob.Common
             // Use a loop to handle retries
             for (int retry = 0; retry < Const.SAM_MAX_RETRY; retry++)
             {
-                if (File.Exists(wemPath))
+                if (File.Exists(wemPath) && !(Const.REPLACE_VA_LINES_ONLY && hasVA))
                 {
                     // Audio file already exists in cache, no need to retry
                     return wemPath;
@@ -167,12 +405,12 @@ namespace JortPob.Common
                         Directory.CreateDirectory(lineDir);
                     }
 
-                    if (hasVA)
+                    if (vaPath != null)
                     {
-                        File.Copy(VAHashes.First(f => f.Contains(hashName)), wavPath, true);
+                        File.Copy(vaPath, wavPath, true);
                         Lort.Log($"Line {hashName}, was replaced with a VA line", Lort.Type.Debug);
                     }
-                    else
+                    else if (!File.Exists(wavPath))
                     {// 2. Generate WAV (Text-to-Speech)
                      // string ssmlLine = $"<speak>{line}<break time='500ms'/></speak>";
                         string voice = npc.sex == CharacterContent.Sex.Female ? "slt" : "rms";

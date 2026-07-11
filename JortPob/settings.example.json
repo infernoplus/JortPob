@@ -33,6 +33,8 @@
 
   // Saves anywhere between 2 and 45 minutes on a build. Makes all dialog skip instantly though.
   "DEBUG_SKIP_SOUND": false,
+  // Rebuild only lines that have a matching WAV in the mod's lines directory; preserve other cached WEMs.
+  "REPLACE_VA_LINES_ONLY": false,
 
   // Saves a solid chunk of time on builds
   "DEBUG_SKIP_NAVMESH": false,

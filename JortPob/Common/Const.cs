@@ -274,6 +274,10 @@ namespace JortPob.Common
         [Setting(DefaultValue = 10)]
         public static int SAM_MAX_RETRY { get; private set; }
 
+        /// When enabled, existing generated WEMs are rebuilt only for lines with a matching VA WAV.
+        [Setting(DefaultValue = false)]
+        public static bool REPLACE_VA_LINES_ONLY { get; private set; }
+
         public static readonly string DEFAULT_DIALOG_WEM = Utility.ResourcePath(@"sound\page_turn.wem");
 
         /// character limit in a line of dialog. prevents subtitle cutting off
