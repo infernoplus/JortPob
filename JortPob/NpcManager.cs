@@ -169,7 +169,7 @@ namespace JortPob
                         {
                             lineHash = $"{content.name}{line}";
                         }
-                        var hashName = $"{lineHash.GetMD5Hash}+{i}";
+                        var hashName = $"{lineHash.GetMD5Hash()}+{i}";
                         if (Const.USE_SAM && !Const.DEBUG_SKIP_SOUND) { wemFile = soundManager.GenerateLine(dia, info, line, hashName, content); }
                         else { wemFile = Const.DEFAULT_DIALOG_WEM; }
 
