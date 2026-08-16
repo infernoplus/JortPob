@@ -439,7 +439,7 @@ namespace JortPob
             }
         }
 
-        public record FieldBoss(Int2 cell, string comment, int music, float radius, BossRemap boss);
+        public record FieldBoss(Int2 cell, string comment, float radius, BossRemap boss);
         public record AreaBoss(string cell, string comment, int music, BossRemap boss);
         public record BossRemap(string name, string character, EnemyRemapData npc, EnemyRemapData think, int souls, List<(string item, int quantity)> drops);
 

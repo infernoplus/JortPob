@@ -5,7 +5,6 @@
       "y": 0
     },
     "comment": "Fallback default boss if a cell does not have an entry defined here.",
-    "music": 931000,
     "radius": 64.0,
     "boss": {
       "name": "Default Boss",
