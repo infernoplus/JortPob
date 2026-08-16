@@ -585,6 +585,12 @@ namespace JortPob.Common
                 list[index] = newItem;
             }
         }
+
+
+        public static bool Empty<T>(this List<T> list)
+        {
+            return list.Count <= 0;
+        }
     }
 
     public static class BitmapUtilities

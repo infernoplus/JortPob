@@ -42,23 +42,23 @@ namespace JortPob
 
                         foreach (DoorContent door in cell.doors)
                         {
-                            if (door.warp != null)
+                            // real fake doors
+                            if (door.warp == null) { continue; }
+
+                            // found exterior
+                            if (door.warp.cell == null)
                             {
-                                // found exterior
-                                if (door.warp.cell == null)
+                                Cell linked = esm.GetCellByPosition(door.warp.position);
+                                if (linked != null && linked.IsExterior()) { return linked; }
+                            }
+                            // another interior...
+                            else
+                            {
+                                Cell linked = esm.GetCellByName(door.warp.cell);
+                                if (!searched.Contains(linked))
                                 {
-                                    Cell linked = esm.GetCellByPosition(door.warp.position);
-                                    if (linked != null && linked.IsExterior()) { return linked; }
-                                }
-                                // another interior...
-                                else
-                                {
-                                    Cell linked = esm.GetCellByName(door.warp.cell);
-                                    if (!searched.Contains(linked))
-                                    {
-                                        Cell result = ExteriorLinkSearch(linked);
-                                        if (result != null && result.IsExterior()) { return result; }
-                                    }
+                                    Cell result = ExteriorLinkSearch(linked);
+                                    if (result != null && result.IsExterior()) { return result; }
                                 }
                             }
                         }
@@ -69,7 +69,7 @@ namespace JortPob
                     Cell linkedExterior = ExteriorLinkSearch(cell);
                     return linkedExterior;
                 }
-                throw new Exception("WHAT?!");
+                return cell; // already exterior, just return self. should be unreachable?
             }
 
             string fuckAss = "";

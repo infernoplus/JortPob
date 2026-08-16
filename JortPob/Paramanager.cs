@@ -892,10 +892,8 @@ namespace JortPob
 
                 /* Calculate difficulty values from settings json */
                 float scalar = i * (1f / (settings.tiers-1));
-                foreach(var entry in settings.data)
+                foreach(var (field, range) in settings.data)
                 {
-                    string field = entry.Key;
-                    float[] range = entry.Value;
                     float value = float.Lerp(range[0], range[1], scalar);
                     row[field].Value.SetValue(value);
                 }
@@ -907,6 +905,7 @@ namespace JortPob
             }
         }
 
+        // @TODO: Would be nice to reduce copy-paste code here since both NpcContent and CreatureContent are handled very similarly.
         public void GenerateNpcParam(ItemManager itemManager, BaseScript script, NpcContent npc, int level, int id)
         {
             // It seems like special poses are tied to npcparam in some way so i need to copy lanya to get the 'dead body' pose
@@ -931,7 +930,8 @@ namespace JortPob
             row["itemLotId_enemy"].Value.SetValue(itemLotRow);
 
             /* Clear generic difficulty speffs */
-            for(int i=0;i<32;i++)
+            const int SPEFF_CELL_COUNT = 32;
+            for (int i = 0; i < SPEFF_CELL_COUNT; i++)
             {
                 FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
                 int speffId = (int)(cell.Value);
@@ -944,7 +944,7 @@ namespace JortPob
 
             /* Add difficulty speff for area difficulty level of this npcparam */
             int difficultySpeffId = difficultyScalingSpeffs[level];
-            for (int i = 0; i < 32; i++)
+            for (int i = 0; i < SPEFF_CELL_COUNT; i++)
             {
                 FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
                 int speffId = (int)(cell.Value);
@@ -977,7 +977,8 @@ namespace JortPob
             SillyJsonUtils.ModifyRow(row, remap.npc.data);
 
             /* Clear generic difficulty speffs */
-            for (int i = 0; i < 32; i++)
+            const int SPEFF_CELL_COUNT = 32;
+            for (int i = 0; i < SPEFF_CELL_COUNT; i++)
             {
                 FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
                 int speffId = (int)(cell.Value);
@@ -990,7 +991,7 @@ namespace JortPob
 
             /* Add difficulty speff for area difficulty level of this npcparam */
             int difficultySpeffId = difficultyScalingSpeffs[level];
-            for (int i = 0; i < 32; i++)
+            for (int i = 0; i < SPEFF_CELL_COUNT; i++)
             {
                 FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
                 int speffId = (int)(cell.Value);

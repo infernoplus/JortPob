@@ -779,12 +779,14 @@ namespace JortPob
 
         public string Get(float difficulty)
         {
+            if (creatures.Empty()) { throw new Exception($"Attemped to 'get' from an empty LeveledCreature list: {id}"); }
+
             int reqLevel = (int)Math.Max(1f, difficulty * 55f);  // conversion of world difficulty scale to player character level here. very fast and loose. this should be good enough though
             List<(string id, int level)> validCreatures = creatures
                 .Where(c => c.level <= reqLevel)
                 .ToList();
 
-            if(validCreatures.Count() <= 0) { return creatures[0].id; } // if the level req for every entry is not met and we have an emtpy list return the lowest level creature (the first one)
+            if(validCreatures.Empty()) { return creatures[0].id; } // if the level req for every entry is not met and we have an emtpy list return the lowest level creature (the first one)
 
             int rand = Utility.RandomRange(0, validCreatures.Count());
             return validCreatures[rand].id;

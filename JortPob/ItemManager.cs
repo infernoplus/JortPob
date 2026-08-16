@@ -1231,7 +1231,6 @@ namespace JortPob
             public readonly string id;  // morrowind record id
             public readonly int chance; // chance for no item at all
 
-            private int weight; // total weight of all entries
             private readonly List<(ItemInfo item, int level)> list;  // item and level requirement to roll it
 
             public LeveledList(string id, int chance)
@@ -1239,21 +1238,17 @@ namespace JortPob
                 this.id = id;
                 this.chance = chance;
                 list = new();
-
-                weight = 0;
             }
 
             public void Add(ItemInfo item, int level)
             {
-                int corrected = Math.Min(Math.Max(1, level), 30);
-                weight += corrected;
-                list.Add((item, corrected));
+                list.Add((item, level));
             }
 
-            /* Resolves the leveled list statically using level requirements as weighting for chance */
+            /* Resolves the leveled list statically using area difficulty to determine valid options against level requirements */
             public ItemInfo Get(float difficulty)
             {
-                if (list.Count <= 0) { return null; }  // empty lists are a theoretical possibility
+                if (list.Empty()) { return null; }  // empty lists are a theoretical possibility
                 if (Utility.RandomRange(0, 100) < chance) { return null; }  // chance is a chance for no item at all so resolve that first
 
                 int reqLevel = (int)Math.Max(1f, difficulty * 55f);  // conversion of world difficulty scale to player character level here. very fast and loose. this should be good enough though
@@ -1261,7 +1256,7 @@ namespace JortPob
                     .Where(l => l.level <= reqLevel)
                     .ToList();
 
-                if (validItems.Count() <= 0) { return list[0].item; } // if the level req for every entry is not met and we have an emtpy list return the lowest level item (the first one)
+                if (validItems.Empty()) { return list[0].item; } // if the level req for every entry is not met and we have an emtpy list return the lowest level item (the first one)
 
                 int rand = Utility.RandomRange(0, validItems.Count());
                 return validItems[rand].item;
