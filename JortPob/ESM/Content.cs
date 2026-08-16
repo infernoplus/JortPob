@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using static JortPob.CharacterContent;
 
 namespace JortPob
 {
@@ -87,6 +88,20 @@ namespace JortPob
             this.relative = content.relative;
             this.load = content.load;
             this.mesh = content.mesh;
+        }
+    }
+
+    /* Dummy content is used to mark locations for things we are generating for the mod. Dummy content always has # at the start of the id. EX: #AreaBossSpawn */
+    public class DummyContent : Content
+    {
+        public enum DummyType { AreaBossSpawn, AreaBossFog, AreaBossBounds, FieldBossSpawn, FieldBossPath }
+
+        public readonly DummyType dummy;
+
+        public DummyContent(Cell cell, JsonNode json, Record record) : base(cell, json, record)
+        {
+            dummy = Enum.Parse<DummyType>(id[1..], true);  // [1..] removes the # from the start of the id string
+            rotation += new Vector3(0f, 180f, 0f);  // models are rotated during conversion, placements like this are rotated here during serializiation to match
         }
     }
 
@@ -431,7 +446,7 @@ namespace JortPob
                 catch { }
             }
 
-            rotation += new Vector3(0f, 180f, 8);  // models are rotated during conversion, placements like this are rotated here during serializiation to match
+            rotation += new Vector3(0f, 180f, 0f);  // models are rotated during conversion, placements like this are rotated here during serializiation to match
 
             inventory = new();
             JsonArray invJson = record.json["inventory"].AsArray();

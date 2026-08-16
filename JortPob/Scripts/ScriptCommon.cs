@@ -36,7 +36,8 @@ namespace JortPob.Scripts
             SpawnHandler, SpawnHandlerDisableable, SpawnHandlerPhased, IntSpawnHandler, IntSpawnHandlerDisableable, IntSpawnHandlerPhased, Halt,
             LoadDoor, NpcHostilityHandler, Message, Essential, DeadBody, 
             ItemAsset, OwnedItemAsset, ItemAssetWithDisable, OwnedItemAssetWithDisable, OwnedContainer, TravelWarp, RemoveItem, PermanentSpeff,
-            StaticDisable, PlaySE, TriggerEnable, TriggerDisable, NpcModStat, NpcInfight, GetSecondsPassed
+            StaticDisable, PlaySE, TriggerEnable, TriggerDisable, NpcModStat, NpcInfight, GetSecondsPassed,
+            AreaBossFog, AreaBossFight, FieldBossFight, FieldBossDefeat
         }
         public readonly Dictionary<Event, uint> events = new();
         public readonly Dictionary<int, Script.Flag> messages = new();  // hash of message text as key, value is flag that when set to true triggers a message to display
@@ -158,6 +159,18 @@ namespace JortPob.Scripts
 
             /* Create event for emulating the GetSecondsPassed papyrus call */
             RegisterTemplateEvent(Event.GetSecondsPassed, "CommonFunc:GetSecondsPassed", TemplateEMEVD.CreateGetSecondsPassedEvent);
+
+            /* Create event for the fog door of an area boss */
+            RegisterTemplateEvent(Event.AreaBossFog, "CommonFunc:AreaBossFog", TemplateEMEVD.CreateAreaBossFogEvent);
+
+            /* Create event for managing an area boss fight */
+            RegisterTemplateEvent(Event.AreaBossFight, "CommonFunc:AreaBossFight", TemplateEMEVD.CreateAreaBossFightEvent);
+
+            /* Create event for managing a field boss fight */
+            RegisterTemplateEvent(Event.FieldBossFight, "CommonFunc:FieldBossFight", TemplateEMEVD.CreateFieldBossFightEvent);
+
+            /* Create event for the defeat of a field boss*/
+            RegisterTemplateEvent(Event.FieldBossDefeat, "CommonFunc:FieldBossDefeat", TemplateEMEVD.CreateFieldBossDefeatEvent);
         }
 
         public override string[] FilesToLink()

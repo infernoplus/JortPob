@@ -396,7 +396,7 @@ namespace JortPob
                         if (pointNames.Contains(lowerName)) { continue; }
 
                         // checks if a position is inside of one of the important map points we created above. skip these too!
-                        if (importants.Any(p => Vector3.Distance(door.position, p.position) <= p.radius)) {  continue; }
+                        if (importants.Any(p => Vector3.Distance(door.position, p.position) <= p.radius)) { continue; }
 
                         const float UNIMPORTANT_SIZE_MODIFIER = 0.3f;
                         Script.Flag discoverFlag = scriptManager.common.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.DiscoverLocation, name); // if 2 doors go to the same interior we share the flag
