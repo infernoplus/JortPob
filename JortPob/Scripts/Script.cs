@@ -262,7 +262,7 @@ namespace JortPob.Scripts
             }
         }
 
-        /* Register area boss fight */
+        /* Register field boss fight */
         public void RegisterFieldBossFight(Paramanager paramanager, ItemManager itemManager, TextManager textManager, Override.FieldBoss fieldBoss, MSBE.Part.Enemy bossEnemy, MSBE.Region.Other fightBounds)
         {
             // Setup a flag for the boss fight
