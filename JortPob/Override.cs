@@ -185,21 +185,15 @@ namespace JortPob
         /* Interior only, uses cell name */
         public static AreaBoss GetAreaBoss(string cell)
         {
-            foreach (AreaBoss ab in AREA_BOSS)
-            {
-                if (ab.cell.ToLower().Trim() == cell.ToLower().Trim()) { return ab; }
-            }
-            return GetAreaBoss("Default"); // if remap isn't present then return the "Default" one at the top. Note that if the Default one isn't in the json this will stack overflow lol
+            // if remap isn't present then return the "Default" one at the top. Note that if the Default one isn't in the json this will stack overflow lol
+            return AREA_BOSS.FirstOrDefault(ab => ab.cell.ToLower().Trim() == cell.ToLower().Trim()) ?? GetAreaBoss("Default");
         }
 
         /* Exterior only, uses cell grid coordinate */
         public static FieldBoss GetFieldBoss(Int2 cell)
         {
-            foreach (FieldBoss fb in FIELD_BOSS)
-            {
-                if (fb.cell == cell) { return fb; }
-            }
-            return GetFieldBoss(new(0,0)); // if remap isn't present then return the "Default" one at the top. Note that if the Default one isn't in the json this will stack overflow lol
+            // if remap isn't present then return the default one at cell [0,0]. Note that if the Default one isn't in the json this will stack overflow lol
+            return FIELD_BOSS.FirstOrDefault(fb => fb.cell == cell) ?? GetFieldBoss(new(0, 0)); 
         }
 
         /* load all the override jsons into this class */

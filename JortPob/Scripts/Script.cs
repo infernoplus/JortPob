@@ -3,6 +3,7 @@ using SoulsFormats;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 /* Individual script for an msb. */
 /* managed by ScriptManager 
@@ -206,12 +207,8 @@ namespace JortPob.Scripts
             int speffId = paramanager.GenerateSoulGainSpeff(areaBoss.boss.souls);
 
             // Generate item lot for boss drop
-            List<(ItemManager.ItemInfo item, int quantity)> items = new();
-            foreach((string item, int quantity) entry in areaBoss.boss.drops)
-            {
-                ItemManager.ItemInfo itemInfo = itemManager.GetItem(entry.item);
-                items.Add((itemInfo, entry.quantity));
-            }
+            List<(ItemManager.ItemInfo item, int quantity)> items = 
+                areaBoss.boss.drops.Select(entry => (item: itemManager.GetItem(entry.item), quantity: entry.quantity)).ToList(); // convert list of item ids and quants to actual ItemInfo and quants
             int itemLot = paramanager.GenerateBossItemLot(areaBoss.boss, items);
 
             // Generate name text for boss

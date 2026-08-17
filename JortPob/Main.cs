@@ -551,9 +551,9 @@ namespace JortPob
                     /* Generate Area Boss if dummies are present to place one */
                     if(group.IsInterior && chunk.HasDummy(DummyContent.DummyType.AreaBossSpawn))
                     {
-                        DummyContent spawnContent = chunk.GetDummys(DummyContent.DummyType.AreaBossSpawn)[0]; // grab first, should only ever be 1
+                        DummyContent spawnContent = chunk.GetDummys(DummyContent.DummyType.AreaBossSpawn).First(); // grab first, should only ever be 1
                         List<DummyContent> boundsContent = chunk.GetDummys(DummyContent.DummyType.AreaBossBounds);
-                        List<DummyContent> fogContent = chunk.GetDummys(DummyContent.DummyType.AreaBossFog); // should only be 1 but we may end up supporting multiple later
+                        List<DummyContent> fogContent = chunk.GetDummys(DummyContent.DummyType.AreaBossFog); // supports multiple (mostly) but prefer single fogdoor
                         Override.AreaBoss areaBoss = Override.GetAreaBoss(spawnContent.cell.name);
 
                         /* Create boss enemy */
