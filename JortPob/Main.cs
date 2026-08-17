@@ -1,4 +1,5 @@
-﻿using JortPob.Common;
+﻿using DynamicData;
+using JortPob.Common;
 using JortPob.Scripts;
 using JortPob.Worker;
 using PortJob;
@@ -8,6 +9,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using TES3;
+using static JortPob.Override;
 using static JortPob.Scripts.Script;
 
 namespace JortPob
@@ -545,6 +548,147 @@ namespace JortPob
                         msb.Parts.Assets.Add(asset);
                     }
 
+                    /* Generate Area Boss if dummies are present to place one */
+                    if(group.IsInterior && chunk.HasDummy(DummyContent.DummyType.AreaBossSpawn))
+                    {
+                        DummyContent spawnContent = chunk.GetDummys(DummyContent.DummyType.AreaBossSpawn).First(); // grab first, should only ever be 1
+                        List<DummyContent> boundsContent = chunk.GetDummys(DummyContent.DummyType.AreaBossBounds);
+                        List<DummyContent> fogContent = chunk.GetDummys(DummyContent.DummyType.AreaBossFog); // supports multiple (mostly) but prefer single fogdoor
+                        Override.AreaBoss areaBoss = Override.GetAreaBoss(spawnContent.cell.name);
+
+                        /* Create boss enemy */
+                        MSBE.Part.Enemy bossEnemy = MakePart.Creature(areaBoss.boss.character);
+                        bossEnemy.Position = spawnContent.relative + Const.MSB_OFFSET;
+                        bossEnemy.Rotation = spawnContent.rotation;
+
+                        bossEnemy.Unk1.DisplayGroups[0] = 0;
+                        bossEnemy.CollisionPartName = rootCollision.Name;
+
+                        (int npc, int think) paramRows = character.GetParams(item, script, spawnContent, areaBoss.boss); // creates/gets and returns NpcParam, NpcThinkParam
+                        bossEnemy.NPCParamID = paramRows.npc;
+                        bossEnemy.ThinkParamID = paramRows.think;
+
+                        bossEnemy.EntityID = script.CreateEntity(EntityType.Enemy, $"AreaBoss: {chunk.cells[0].name}->{areaBoss.boss.name}");
+
+                        msb.Parts.Enemies.Add(bossEnemy);
+
+                        /* Create boss room bounding box region */    // @TODO: a more complex version that accounts for rotated boxes would be nice but not necessary
+                        Vector3 min = new(float.MaxValue);
+                        Vector3 max = new(float.MinValue);
+                        foreach(DummyContent bound in boundsContent)
+                        {
+                            if (bound.relative.X < min.X) { min.X = bound.relative.X; }
+                            if (bound.relative.X > max.X) { max.X = bound.relative.X; }
+                            if (bound.relative.Y < min.Y) { min.Y = bound.relative.Y; }
+                            if (bound.relative.Y > max.Y) { max.Y = bound.relative.Y; }
+                            if (bound.relative.Z < min.Z) { min.Z = bound.relative.Z; }
+                            if (bound.relative.Z > max.Z) { max.Z = bound.relative.Z; }
+                        }
+                        Vector3 center = Vector3.Lerp(min, max, .5f);
+                        Vector3 size = max - min;
+                        size.Y += 1f; // bonus 1f is to make sure region goes fully under the floor (not just slightly above it)
+
+                        MSBE.Region.Other roomBounds = MakePart.Region(); // boss room region
+                        roomBounds.Name = $"BossRoom: {chunk.cells[0].name}->{areaBoss.boss.name}";
+                        roomBounds.RegionID = nextMPR++;
+                        roomBounds.Shape = new MSB.Shape.Box(size.X, size.Z, size.Y);
+                        roomBounds.Position = center - new Vector3(0f, size.Y / 2f, 0f) + Const.MSB_OFFSET;
+                        roomBounds.EntityID = script.CreateEntity(EntityType.Region, roomBounds.Name);
+                        msb.Regions.Others.Add(roomBounds);
+
+                        /* Create boss fog */
+                        List<(MSBE.Part.Asset asset, MSBE.Region.Other target)> fogs = new();
+                        foreach (DummyContent fc in fogContent)
+                        {
+                            MSBE.Part.Asset fog = MakePart.FogWall();
+                            fog.Position = fc.relative + Const.MSB_OFFSET;
+                            fog.Rotation = fc.rotation + new Vector3(0f, 180f, 0f); // back face of fog door is the entrance for some reason.
+                            fog.Unk1.DisplayGroups[0] = 0;
+                            fog.UnkPartNames[1] = rootCollision.Name;
+                            fog.UnkPartNames[3] = rootCollision.Name;
+                            fog.UnkPartNames[5] = rootCollision.Name;
+                            fog.EntityID = script.CreateEntity(EntityType.Asset, $"FogDoor: {chunk.cells[0].name}->{areaBoss.boss.name}");
+                            msb.Parts.Assets.Add(fog);
+
+                            // Target region
+                            float cos = (float)Math.Cos(float.DegreesToRadians(fc.rotation.Y));
+                            float sin = (float)Math.Sin(float.DegreesToRadians(fc.rotation.Y));
+                            Vector2 angle = new((0f * cos) + (-1f * sin), (0f * -sin) + (-1f * cos));
+                            Vector3 offset = new(angle.X * 5f, 0f, angle.Y * 5f);
+
+                            MSBE.Region.Other fogTarget = MakePart.Region();
+                            fogTarget.Name = $"FogTarget: {chunk.cells[0].name}->{areaBoss.boss.name}";
+                            fogTarget.RegionID = nextMPR++;
+                            fogTarget.Shape = new MSB.Shape.Sphere(1f);
+                            fogTarget.Position = fc.relative + offset + Const.MSB_OFFSET;
+                            fogTarget.EntityID = script.CreateEntity(EntityType.Region, fogTarget.Name);
+                            msb.Regions.Others.Add(fogTarget);
+
+                            fogs.Add((fog, fogTarget));
+                        }
+
+                        /* Setup scripts and flags for bossfight */
+                        ((Script)script).RegisterAreaBossFight(param, item, text, areaBoss, bossEnemy, roomBounds, fogs);
+                    }
+
+                    /* Generate field bosses if dummies are present to place them */
+                    if(!group.IsInterior && chunk.HasDummy(DummyContent.DummyType.FieldBossSpawn))
+                    {
+                        foreach (DummyContent spawnContent in chunk.GetDummys(DummyContent.DummyType.FieldBossSpawn))
+                        {
+                            Override.FieldBoss fieldBoss = Override.GetFieldBoss(spawnContent.cell.coordinate);
+
+                            /* Create boss enemy */
+                            MSBE.Part.Enemy bossEnemy = MakePart.Creature(fieldBoss.boss.character);
+                            bossEnemy.Position = spawnContent.relative + Const.MSB_OFFSET;
+                            bossEnemy.Rotation = spawnContent.rotation;
+
+                            (int npc, int think) paramRows = character.GetParams(item, script, spawnContent, fieldBoss.boss); // creates/gets and returns NpcParam, NpcThinkParam
+                            bossEnemy.NPCParamID = paramRows.npc;
+                            bossEnemy.ThinkParamID = paramRows.think;
+
+                            bossEnemy.EntityID = script.CreateEntity(EntityType.Enemy, $"FieldBoss: {chunk.cells[0].name}->{fieldBoss.boss.name}");
+
+                            msb.Parts.Enemies.Add(bossEnemy);
+
+                            /* Create radius for fight */
+                            MSBE.Region.Other fightBounds = MakePart.Region(); // sphere for bossfight, if player leaves this sphere the fight ends
+                            fightBounds.Name = $"FieldBoss: {spawnContent.cell.coordinate}->{fieldBoss.boss.name}";
+                            fightBounds.RegionID = nextMPR++;
+                            fightBounds.Shape = new MSB.Shape.Sphere(fieldBoss.radius);
+                            fightBounds.Position = spawnContent.relative + Const.MSB_OFFSET;
+                            fightBounds.EntityID = script.CreateEntity(EntityType.Region, fightBounds.Name);
+                            msb.Regions.Others.Add(fightBounds);
+
+                            /* Create path points */
+                            List<MSBE.Region.PatrolRoute> path = new();
+                            int c = 0;
+                            foreach(DummyContent pathContent in chunk.GetDummys(DummyContent.DummyType.FieldBossPath))
+                            {
+                                if (Vector3.Distance(spawnContent.relative, pathContent.relative) > fieldBoss.radius) { continue; }
+
+                                MSBE.Region.PatrolRoute point = MakePart.PatrolRoute();
+                                point.Name = $"FieldBossPath: {fieldBoss.boss.name} :: {c++:D2}";
+                                point.Shape = new MSB.Shape.Sphere(Const.PATH_REGION_SIZE);
+                                point.Position = pathContent.relative + Const.MSB_OFFSET;
+                                point.RegionID = nextMPR++;
+                                msb.Regions.PatrolRoutes.Add(point);
+                                path.Add(point);
+                            }
+
+                            /* Create Patrol */
+                            if (path.Count() > 0)
+                            {
+                                MSBE.Event.PatrolInfo patrol = MakePart.PatrolRandom(path);
+                                msb.Events.PatrolInfo.Add(patrol);
+                                bossEnemy.WalkRouteName = patrol.Name;
+                            }
+
+                            /* Setup scripts and flags for bossfight */
+                            ((Script)script).RegisterFieldBossFight(param, item, text, fieldBoss, bossEnemy, fightBounds);
+                        }
+                    }
+
                     /* Add scripted positions */
                     foreach (Layout.ScriptedPosition sp in chunk.positions)
                     {
@@ -593,35 +737,68 @@ namespace JortPob
                         msb.Regions.PatrolRoutes.Add(region);
                     }
 
-                    /* Handle area names */
-                    if (group is Tile || group.IsInterior)
+                    /* Handle interior area name */
+                    if (group.IsInterior)
                     {
-                        foreach (Layout.MapPoint point in chunk.points)
-                        {
-                            MSBE.Region.MapPoint mpr = MakePart.MapPoint();
-                            int paramId;
-                            if (group.IsInterior)
-                            {
-                                paramId = int.Parse($"60{group.map:D2}{group.coordinate.x:D2}{nextMPR:D2}");
-                                mpr.Shape = new MSB.Shape.Box(chunk.bounds.X, chunk.bounds.Z, chunk.bounds.Y);
-                                mpr.Position = point.relative + Const.MSB_OFFSET - new Vector3(0f, chunk.bounds.Y / 2f, 0f);
-                                mpr.EntityID = scriptManager.areas[chunk.cells[0]]; // entity ids for area covering regions are generated early in build (Layout.cs constructor) but only assigned now
-                            }
-                            else
-                            {
-                                paramId = int.Parse($"61{group.coordinate.x:D2}{group.coordinate.y:D2}{nextMPR:D2}");
-                                mpr.Shape = new MSB.Shape.Sphere(point.radius);
-                                mpr.Position = point.relative + Const.MSB_OFFSET;
-                                mpr.EntityID = script.CreateEntity(EntityType.Region, point.name);
-                                
-                            }
-                            mpr.Name = $"{point.name} placename";
-                            mpr.RegionID = nextMPR++;
-                            mpr.WorldMapPointParamID = param.GenerateWorldMapPoint(group, point, paramId);
+                        int paramId = int.Parse($"60{group.map:D2}{group.coordinate.x:D2}{nextMPR:D2}");
 
-                            msb.Regions.MapPoints.Add(mpr);
-                            if (point.important) { scriptManager.AddLocation(point.name, mpr.EntityID); }
-                        }
+                        MSBE.Region.MapPoint mpr = new();
+                        mpr.Name = $"{chunk.cells[0].name} placename";
+                        mpr.Shape = new MSB.Shape.Box(chunk.bounds.X, chunk.bounds.Z, chunk.bounds.Y);
+                        mpr.Position = chunk.root + Const.MSB_OFFSET - new Vector3(0f, chunk.bounds.Y / 2f, 0f);
+                        mpr.Rotation = Vector3.Zero;
+                        mpr.RegionID = nextMPR++;
+                        mpr.EntityID = scriptManager.areas[chunk.cells[0]]; // entity ids for area covering regions are generated early in build (Layout.cs constructor) but only assigned now
+                        mpr.MapStudioLayer = 4294967295;
+                        mpr.WorldMapPointParamID = param.GenerateWorldMapPoint(group as InteriorGroup, chunk.cells[0], chunk.root, paramId);
+
+                        mpr.MapID = -1;
+                        mpr.UnkE08 = 255;
+                        mpr.UnkS04 = 0;
+                        mpr.UnkS0C = -1;
+                        mpr.UnkT04 = -1;
+                        mpr.UnkT08 = -1;
+                        mpr.UnkT0C = -1;
+                        mpr.UnkT10 = -1;
+                        mpr.UnkT14 = -1;
+                        mpr.UnkT18 = -1;
+
+                        msb.Regions.MapPoints.Add(mpr);
+                        scriptManager.AddLocation(chunk.cells[0].name, mpr.EntityID);
+                    }
+                }
+
+                /* Handle exterior map points */
+                if (group is Tile t)
+                {
+                    int i = 0;
+                    foreach (Layout.MapPoint point in t.points)
+                    {
+                        int paramId = int.Parse($"61{t.coordinate.x:D2}{t.coordinate.y:D2}{i++:D2}");
+
+                        MSBE.Region.MapPoint mpr = new();
+                        mpr.Name = $"{point.name} placename";
+                        mpr.Shape = new MSB.Shape.Sphere(point.radius);
+                        mpr.Position = point.relative + Const.MSB_OFFSET;
+                        mpr.Rotation = Vector3.Zero;
+                        mpr.RegionID = nextMPR++;
+                        mpr.EntityID = script.CreateEntity(EntityType.Region, point.name);
+                        mpr.MapStudioLayer = 4294967295;
+                        mpr.WorldMapPointParamID = param.GenerateWorldMapPoint(t, point, paramId);
+
+                        mpr.MapID = -1;
+                        mpr.UnkE08 = 255;
+                        mpr.UnkS04 = 0;
+                        mpr.UnkS0C = -1;
+                        mpr.UnkT04 = -1;
+                        mpr.UnkT08 = -1;
+                        mpr.UnkT0C = -1;
+                        mpr.UnkT10 = -1;
+                        mpr.UnkT14 = -1;
+                        mpr.UnkT18 = -1;
+
+                        msb.Regions.MapPoints.Add(mpr);
+                        if (point.important) { scriptManager.AddLocation(point.name, mpr.EntityID); }
                     }
                 }
 

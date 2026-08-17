@@ -2,8 +2,6 @@
 using JortPob.Common;
 using JortPob.Scripts;
 using JortPob.Worker;
-using Mutagen.Bethesda.Skyrim;
-using NexusMods.Paths.Trees.Traits;
 using SoulsFormats;
 using SoulsFormats.Cryptography;
 using System;
@@ -11,7 +9,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using System.Windows.Forms;
 using WitchyFormats;
 
 namespace JortPob
@@ -1005,6 +1002,47 @@ namespace JortPob
             AddOrReplaceRow(npcParam, row);
         }
 
+        public void GenerateNpcParam(ItemManager itemManager, BaseScript script, DummyContent dummy, int level, int id, Override.BossRemap bossRemap)
+        {
+            int rowToCopy = bossRemap.npc.row;
+
+            FsParam npcParam = param[ParamType.NpcParam];
+            FsParam.Row row = CloneRow(npcParam[rowToCopy], $"Boss: {dummy.cell.name}->{bossRemap.name} | diff+{level}", id);
+
+            /* Setup basic npc param stuff */
+            int textId = textManager.AddNpcName(bossRemap.name);
+            row.Cells[5].SetValue(textId);                       // nameId
+            row.Cells[105].SetValue((byte)7);                   // teamtype 7 = boss
+            row["itemLotId_enemy"].Value.SetValue(-1);         // loot from bosses awarded by script, not drop
+
+            /* Apply param cell values from JSON data */
+            SillyJsonUtils.ModifyRow(row, bossRemap.npc.data);
+
+            /* Clear generic difficulty speffs */    // note: for bosses we may forego this system in favor of hand editing each bosses stats. for now leaving it alone though!
+            for (int i = 0; i < 32; i++)
+            {
+                FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
+                int speffId = (int)(cell.Value);
+                if (speffId >= 7000 && speffId <= 7680) { cell.SetValue(-1); }                   // Area Scaling +0 to +25 & NG+ Scaling
+                else if (speffId >= 19350 && speffId <= 19370) { cell.SetValue(-1); }           // Special Humanoid Area Scaling
+                else if (speffId >= 19500 && speffId <= 19517) { cell.SetValue(-1); }          // Special Humanoid NG+ Scaling
+                else if (speffId >= 20007000 && speffId <= 20008750) { cell.SetValue(-1); }   // DLC Scaling
+                else if (speffId == 0) { cell.SetValue(-1); }                                // This annoys me, 0 and -1 are the same but GUH
+            }
+
+            /* Add difficulty speff for area difficulty level of this npcparam */
+            int difficultySpeffId = difficultyScalingSpeffs[level];
+            for (int i = 0; i < 32; i++)
+            {
+                FsParam.Cell cell = (FsParam.Cell)row[$"spEffectID{i}"];
+                int speffId = (int)(cell.Value);
+
+                if (speffId == -1) { cell.SetValue(difficultySpeffId); break; }  // find first empty slot and add
+            }
+
+            AddOrReplaceRow(npcParam, row);
+        }
+
         public void GenerateThinkParam(ItemManager itemManager, BaseScript script, NpcContent npc, int id)
         {
             FsParam thinkParam = param[ParamType.NpcThinkParam];
@@ -1028,6 +1066,16 @@ namespace JortPob
             FsParam.Row row = CloneRow(thinkParam[remap.think.row], creature.id, id);
 
             SillyJsonUtils.ModifyRow(row, remap.think.data);
+
+            AddOrReplaceRow(thinkParam, row);
+        }
+
+        public void GenerateThinkParam(ItemManager itemManager, BaseScript script, DummyContent dummy, int id, Override.BossRemap bossRemap)
+        {
+            FsParam thinkParam = param[ParamType.NpcThinkParam];
+            FsParam.Row row = CloneRow(thinkParam[bossRemap.think.row], $"Boss: {dummy.cell.name}->{bossRemap.name}", id);
+
+            SillyJsonUtils.ModifyRow(row, bossRemap.think.data);
 
             AddOrReplaceRow(thinkParam, row);
         }
@@ -1259,36 +1307,24 @@ namespace JortPob
             }
         }
 
-        /* Generate or get an already generated worldmappoint to be used as a placename. Not for actual map icons! */
-        public int GenerateWorldMapPoint(IMSBCompilableGroup group, Layout.MapPoint point, int id)
+        /* Create map point that shows on the world map. Can also show area title on screen optionally. Exterior only. */
+        public int GenerateWorldMapPoint(BaseTile tile, Layout.MapPoint point, int id)
         {
             FsParam worldMapPointParam = param[ParamType.WorldMapPointParam];
             FsParam.Row row = CloneRow(worldMapPointParam[1], $"{point.name} placename", id); // 1 is our template
 
             int textId = textManager.AddLocation(point.name);
 
-                        
-            if (group.IsInterior)
-            {
-                row["eventFlagId"].Value.SetValue(6001u);    // always on event flag
-                row["dispMask00"].Value.SetValue((byte)0);   // never show on map
-                row["dispMask01"].Value.SetValue((byte)0);   // never show on map
-                row["dispMask02"].Value.SetValue((byte)0);   // never show on map
-            }
-            else
-            {
-                row["eventFlagId"].Value.SetValue(point.discovered.id);
-                row["dispMask00"].Value.SetValue((byte)1);
-                row["dispMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
-                row["selectMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
-            }
-
+            row["eventFlagId"].Value.SetValue(point.discovered.id);
             row["iconId"].Value.SetValue((ushort)point.icon);
             row["altIconId"].Value.SetValue((ushort)point.icon);
+            row["dispMask00"].Value.SetValue((byte)1);
+            row["dispMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
+            row["selectMinZoomStep"].Value.SetValue((byte)(point.important ? 0 : 1));
 
-            row["areaNo"].Value.SetValue((byte)group.map);
-            row["gridXNo"].Value.SetValue((byte)group.coordinate.x);
-            row["gridZNo"].Value.SetValue((byte)group.coordinate.y);
+            row["areaNo"].Value.SetValue((byte)tile.map);
+            row["gridXNo"].Value.SetValue((byte)tile.coordinate.x);
+            row["gridZNo"].Value.SetValue((byte)tile.coordinate.y);
 
             row["posX"].Value.SetValue(point.relative.X);
             row["posY"].Value.SetValue(point.relative.Y);
@@ -1304,7 +1340,47 @@ namespace JortPob
             row["textDisableFlagId3"].Value.SetValue((uint)0);
             row["textType3"].Value.SetValue((byte)0);
 
-            row["entryFEType"].Value.SetValue((byte)(point.important?0:2));  // 0 shows a area title when you walk into it, 2 does not
+            row["entryFEType"].Value.SetValue((byte)(point.important ? 0 : 2));  // 0 shows a area title when you walk into it, 2 does not
+
+            AddOrReplaceRow(worldMapPointParam, row);
+
+            return id;
+        }
+
+        /* Displays area title when entering interiors */
+        public int GenerateWorldMapPoint(InteriorGroup group, Cell cell, Vector3 relative, int id)
+        {
+            FsParam worldMapPointParam = param[ParamType.WorldMapPointParam];
+            FsParam.Row row = CloneRow(worldMapPointParam[1], $"{cell.name} placename", id); // 1 is our template
+
+            int textId = textManager.AddLocation(cell.name);
+
+            row["eventFlagId"].Value.SetValue(6001u);  // always on event flag
+            row["iconId"].Value.SetValue((ushort)0);
+            row["altIconId"].Value.SetValue((ushort)0);
+            row["dispMask00"].Value.SetValue((byte)0);   // never show on map
+            row["dispMask01"].Value.SetValue((byte)0);   // never show on map
+            row["dispMask02"].Value.SetValue((byte)0);   // never show on map
+
+            row["areaNo"].Value.SetValue((byte)group.map);
+            row["gridXNo"].Value.SetValue((byte)group.area);
+            row["gridZNo"].Value.SetValue((byte)group.unk);
+
+            row["posX"].Value.SetValue(relative.X);
+            row["posY"].Value.SetValue(relative.Y);
+            row["posZ"].Value.SetValue(relative.Z);
+
+            row["textId1"].Value.SetValue(textId);
+
+            row["textEnableFlag2Id3"].Value.SetValue(0);
+            row["textDisableFlag2Id3"].Value.SetValue(0);
+
+            row["textId3"].Value.SetValue(-1);
+            row["textEnableFlagId3"].Value.SetValue((uint)0);
+            row["textDisableFlagId3"].Value.SetValue((uint)0);
+            row["textType3"].Value.SetValue((byte)0);
+
+            row["entryFEType"].Value.SetValue((byte)0);
 
             AddOrReplaceRow(worldMapPointParam, row);
 
@@ -1626,6 +1702,45 @@ namespace JortPob
             {
                 FsParam.Row row = CloneRow(itemLotParam[584000500], $"npc inventory, repeatable, {content.id}:{i}:{entry.item.id}", baseRow + i); // 584000500 is a blankish one i found that looked good as a base
                 
+                row["getItemFlagId"].Value.SetValue((uint)0);
+                row[$"lotItemCategory01"].Value.SetValue(entry.item.ItemLotCategory());
+                row[$"lotItemId01"].Value.SetValue(entry.item.row);
+                row[$"lotItemNum01"].Value.SetValue((byte)entry.quantity);
+                row[$"lotItemBasePoint01"].Value.SetValue((ushort)1000);
+
+                i++;
+                AddOrReplaceRow(itemLotParam, row);
+            }
+
+            nextEnemyItemLotId += 10;
+            return baseRow;
+        }
+
+        /* Creates a speff that adds X amount of souls to the player when applied. Used for awardign player after boss defeat. */
+        public int GenerateSoulGainSpeff(int amount)
+        {
+            const int templateRow = 3269; // This is the effect that gives runes from a Golden Rune so yeah just copying that
+            FsParam.Row row = CloneRow(GetRow(param[ParamType.SpEffectParam], templateRow), $"Gain [{amount}] Souls", nextSpeffId);
+            row["soul"].Value.SetValue(amount);
+            AddOrReplaceRow(param[ParamType.SpEffectParam], row);
+
+            nextSpeffId += 10;
+            return row.ID;
+        }
+
+        /* Generates an itemlot with multiple items and no flag for use as boss drops */
+        public int GenerateBossItemLot(Override.BossRemap bossRemap, List<(ItemManager.ItemInfo item, int quantity)> items)
+        {
+            FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
+            if (items.Count() <= 0) { return -1; } // skip empty inv
+            if (items.Count() > 10) { throw new Exception($" Boss drop itemlot exceeded max entries!"); }
+
+            int i = 0;
+            int baseRow = nextEnemyItemLotId;
+            foreach ((ItemManager.ItemInfo item, int quantity) entry in items)
+            {
+                FsParam.Row row = CloneRow(itemLotParam[0], $"boss drop, repeatable, {bossRemap.name}:{i}:{entry.item.id}", baseRow + i);
+
                 row["getItemFlagId"].Value.SetValue((uint)0);
                 row[$"lotItemCategory01"].Value.SetValue(entry.item.ItemLotCategory());
                 row[$"lotItemId01"].Value.SetValue(entry.item.row);

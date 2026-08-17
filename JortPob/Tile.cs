@@ -229,6 +229,7 @@ namespace JortPob
         public List<ContainerContent> containers { get; init; } = [];
         public List<PickableContent> pickables { get; init; } = [];
         public List<ItemContent> items { get; init; } = [];
+        public List<DummyContent> dummies { get; } = [];
         public List<Layout.WarpDestination> warps { get; init; } = [];
         public List<Layout.MapPoint> points { get; init; } = [];
         public List<Layout.ScriptedPosition> positions { get; init; } = [];
@@ -313,6 +314,8 @@ namespace JortPob
                     npcs.Add(n); break;
                 case CreatureContent c:
                     creatures.Add(c); break;
+                case DummyContent d:
+                    dummies.Add(d); break;
                 default:
                     Lort.Log($" ## WARNING ## Unhandled Content class '{content.type}::{content.id}' fell through AddContent()", Lort.Type.Debug); break;
             }

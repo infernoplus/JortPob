@@ -17,6 +17,7 @@ namespace JortPob.Common
         public static ConcurrentDictionary<string, int> EnemyInstances { get; } = new();      // counts instances of enemies
         public static ConcurrentDictionary<LiquidInfo, int> WaterInstances { get; } = new();
         public static ConcurrentDictionary<string, int> VanillaAssetInstances { get; } = new();
+        public static int FogDoorInstances = 0;
         public static int PlayerInstances = 9000;
         public static int NextPatrolEvent = 0;
 
@@ -295,6 +296,95 @@ namespace JortPob.Common
 
             /* AssetUnk3 */
             asset.AssetUnk3.Unk04 = 0f;
+            asset.AssetUnk3.Unk09 = 255;
+            asset.AssetUnk3.Unk0B = 255;
+            asset.AssetUnk3.Unk0C = -1;
+            asset.AssetUnk3.Unk10 = -1f;
+            asset.AssetUnk3.DisableWhenMapLoadedMapID = new sbyte[] { -1, -1, -1, -1 };
+            asset.AssetUnk3.Unk18 = -1;
+            asset.AssetUnk3.Unk1C = -1;
+            asset.AssetUnk3.Unk20 = -1;
+            asset.AssetUnk3.Unk24 = 255;
+
+            /* AssetUnk4 */
+            asset.AssetUnk4.Unk01 = 255;
+            asset.AssetUnk4.Unk02 = 255;
+
+            return asset;
+        }
+
+        /* Makes the asset part of a fogwall for an area boss fight. Scripts for it are done elsewhere */
+        public static MSBE.Part.Asset FogWall()
+        {
+            MSBE.Part.Asset asset = new();
+
+            /* Instance */
+            int inst = FogDoorInstances++;
+            asset.InstanceID = inst;
+
+            /* Model Stuff */
+            asset.Name = $"AEG099_001_{inst.ToString("D4")}";    // AEG099_001 is the standard fog door asset for Elden Ring. We can add options for small/large versions later
+            asset.ModelName = "AEG099_001";
+
+            /* Top stuff */
+            asset.AssetSfxParamRelativeID = 0;
+            asset.MapStudioLayer = 4294967295;
+            asset.IsShadowDest = true;
+
+            /* Gparam */
+            asset.Gparam.FogParamID = -1;
+            asset.Gparam.LightSetID = -1;
+
+            /* Various Unks */
+            asset.UnkE0F = 1;
+            asset.UnkE3C = -1;
+            asset.UnkT12 = 255;
+            asset.UnkT1E = -1;
+            asset.UnkT24 = -1;
+            asset.UnkT30 = -1;
+            asset.UnkT34 = -1;
+
+            /* Display Groups */
+            asset.Unk1.DisplayGroups[0] = 16;
+            asset.Unk1.UnkC4 = -1;
+
+            /* Unk Groups */
+            asset.Unk2.Condition = -1;
+            asset.Unk2.Unk26 = -1;
+
+            /* TileLoad */
+            asset.TileLoad.MapID = new byte[] { 255, 255, 255, 255 };
+            asset.TileLoad.CullingHeightBehavior = -1;
+
+            /* Grass */
+            asset.Grass.Unk18 = -1;
+
+            /* Asset Partnames */
+            asset.UnkT54PartName = asset.Name;
+            asset.UnkPartNames[4] = asset.Name;
+            asset.UnkPartNames[5] = asset.Name;
+            asset.UnkModelMaskAndAnimID = -1;
+            asset.UnkT5C = -1;
+            asset.UnkT60 = -1;
+            asset.UnkT64 = -1;
+
+            /* AssetUnk1 */
+            asset.AssetUnk1.Unk1C = -1;
+            asset.AssetUnk1.Unk24 = -1;
+            asset.AssetUnk1.Unk26 = -1;
+            asset.AssetUnk1.Unk28 = -1;
+            asset.AssetUnk1.Unk2C = -1;
+
+            /* AssetUnk2 */
+            asset.AssetUnk2.Unk04 = 100;
+            asset.AssetUnk2.Unk14 = -1f;
+            asset.AssetUnk2.Unk1C = 255;
+            asset.AssetUnk2.Unk1D = 255;
+            asset.AssetUnk2.Unk1E = 255;
+            asset.AssetUnk2.Unk1F = 255;
+
+            /* AssetUnk3 */
+            asset.AssetUnk3.Unk04 = 64.808716f;
             asset.AssetUnk3.Unk09 = 255;
             asset.AssetUnk3.Unk0B = 255;
             asset.AssetUnk3.Unk0C = -1;
@@ -601,6 +691,7 @@ namespace JortPob.Common
             {
                 Rotation = Vector3.Zero,
                 MapStudioLayer = 4294967295,
+                RegionID = 0,
                 MapID = -1,
                 UnkE08 = 255,
                 UnkS04 = 0,
@@ -613,6 +704,22 @@ namespace JortPob.Common
                 UnkT18 = -1
             };
             return mapPoint;
+        }
+
+        /* Create region used for scripts to do stuff */
+        public static MSBE.Region.Other Region()
+        {
+            MSBE.Region.Other region = new()
+            {
+                Rotation = Vector3.Zero,
+                MapStudioLayer = 4294967295,
+                MapID = -1,
+                RegionID = 0,
+                UnkE08 = 255,
+                UnkS04 = 0,
+                UnkS0C = -1
+            };
+            return region;
         }
 
         public static MSBE.Event.Treasure Treasure()
@@ -792,6 +899,33 @@ namespace JortPob.Common
             {
                 Layout.PathGridPoint point = points[i];
                 patrol.WalkRegionNames[i] = point.name;
+            }
+
+            NextPatrolEvent++;
+            return patrol;
+        }
+        
+
+        public static MSBE.Event.PatrolInfo PatrolRandom(List<MSBE.Region.PatrolRoute> points)
+        {
+            MSBE.Event.PatrolInfo patrol = new();
+            patrol.Name = $"Patrol_{NextPatrolEvent:D4}";
+            patrol.EventID = NextPatrolEvent;
+            patrol.EntityID = 0;
+
+            patrol.PatrolType = 2;
+
+            patrol.MapID = -1;
+            patrol.Unk14 = 0;
+            patrol.UnkE0C = 255;
+            patrol.UnkS04 = 0;
+            patrol.UnkS08 = 0;
+            patrol.UnkS0C = -1;
+
+            for (int i = 0; i < points.Count && i < patrol.WalkRegionNames.Length; i++)
+            {
+                MSBE.Region.PatrolRoute point = points[i];
+                patrol.WalkRegionNames[i] = point.Name;
             }
 
             NextPatrolEvent++;

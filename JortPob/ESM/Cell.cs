@@ -35,6 +35,7 @@ namespace JortPob
         public readonly List<ContainerContent> containers;
         public readonly List<PickableContent> pickables;
         public readonly List<ItemContent> items;
+        public readonly List<DummyContent> dummies;
 
         public Cell(ESM esm, JsonNode json)
         {
@@ -92,6 +93,7 @@ namespace JortPob
             containers = new();
             pickables = new();
             items = new();
+            dummies = new();
 
             foreach (JsonNode reference in json["references"].AsArray())
             {
@@ -102,54 +104,63 @@ namespace JortPob
 
                 string mesh = record.json["mesh"]?.ToString(); // mesh can just be "" sometimes
 
-                switch (record.type)
+                /* Handles special dummy records */
+                if (id.StartsWith("#"))
                 {
-                    case ESM.Type.Static:
-                    case ESM.Type.Activator:
-                        if (string.IsNullOrEmpty(mesh)) { break; }
-                        string script = record.json["script"]?.GetValue<string>().ToLower().Trim();
-                        if (script == "bed_standard" || script == "chargenbed") { assets.Add(new BedContent(this, reference, record)); }
-                        else { assets.Add(new AssetContent(this, reference, record)); }
-                        break;
-                    case ESM.Type.Door:
-                        if (!string.IsNullOrEmpty(mesh)) { doors.Add(new DoorContent(this, reference, record)); }
-                        break;
-                    case ESM.Type.Light:
-                        if (string.IsNullOrEmpty(mesh)) { lights.Add(new LightContent(this, reference, record)); }
-                        else { emitters.Add(new EmitterContent(this, reference, record)); }
-                        break;
-                    case ESM.Type.Npc:
-                        npcs.Add(new NpcContent(esm, this, reference, record));
-                        break;
-                    case ESM.Type.Creature:
-                        creatures.Add(new CreatureContent(esm, this, reference, record));
-                        break;
-                    case ESM.Type.LeveledCreature:
-                        Record resolvedRecord = esm.ResolveLeveledCreature(id, Override.GetDifficultyScalar(this));
-                        if (resolvedRecord.type == ESM.Type.Creature) { creatures.Add(new CreatureContent(esm, this, reference, resolvedRecord)); }
-                        else if (resolvedRecord.type == ESM.Type.Npc) { npcs.Add(new NpcContent(esm, this, reference, resolvedRecord)); }
-                        else { throw new Exception("Invalid leveled list result record type"); } // if this ever happens todd howard owes me a blood sacrifice
-                        break;
-                    case ESM.Type.Container:
-                        if (id.ToLower().StartsWith("flora_") && id.ToLower() != "flora_treestump_unique") // this specific id is a weird outlier so just adding it as a condition here
-                        {
-                            pickables.Add(new PickableContent(this, reference, record));
-                        }
-                        else { containers.Add(new ContainerContent(this, reference, record)); }
-                        break;
-                    case ESM.Type.Weapon:
-                    case ESM.Type.Armor:
-                    case ESM.Type.Clothing:
-                    case ESM.Type.Ingredient:
-                    case ESM.Type.Alchemy:
-                    case ESM.Type.Apparatus:
-                    case ESM.Type.Book:
-                    case ESM.Type.MiscItem:
-                    case ESM.Type.Lockpick:
-                    case ESM.Type.Probe:
-                    case ESM.Type.RepairItem:
-                        items.Add(new ItemContent(this, reference, record));
-                        break;
+                    dummies.Add(new(this, reference, record));
+                }
+
+                /* Handles standard morrowind records */
+                else {
+                    switch (record.type)
+                    {
+                        case ESM.Type.Static:
+                        case ESM.Type.Activator:
+                            if (string.IsNullOrEmpty(mesh)) { break; }
+                            string script = record.json["script"]?.GetValue<string>().ToLower().Trim();
+                            if (script == "bed_standard" || script == "chargenbed") { assets.Add(new BedContent(this, reference, record)); }
+                            else { assets.Add(new AssetContent(this, reference, record)); }
+                            break;
+                        case ESM.Type.Door:
+                            if (!string.IsNullOrEmpty(mesh)) { doors.Add(new DoorContent(this, reference, record)); }
+                            break;
+                        case ESM.Type.Light:
+                            if (string.IsNullOrEmpty(mesh)) { lights.Add(new LightContent(this, reference, record)); }
+                            else { emitters.Add(new EmitterContent(this, reference, record)); }
+                            break;
+                        case ESM.Type.Npc:
+                            npcs.Add(new NpcContent(esm, this, reference, record));
+                            break;
+                        case ESM.Type.Creature:
+                            creatures.Add(new CreatureContent(esm, this, reference, record));
+                            break;
+                        case ESM.Type.LeveledCreature:
+                            Record resolvedRecord = esm.ResolveLeveledCreature(id, Override.GetDifficultyScalar(this));
+                            if (resolvedRecord.type == ESM.Type.Creature) { creatures.Add(new CreatureContent(esm, this, reference, resolvedRecord)); }
+                            else if (resolvedRecord.type == ESM.Type.Npc) { npcs.Add(new NpcContent(esm, this, reference, resolvedRecord)); }
+                            else { throw new Exception("Invalid leveled list result record type"); } // if this ever happens todd howard owes me a blood sacrifice
+                            break;
+                        case ESM.Type.Container:
+                            if (id.ToLower().StartsWith("flora_") && id.ToLower() != "flora_treestump_unique") // this specific id is a weird outlier so just adding it as a condition here
+                            {
+                                pickables.Add(new PickableContent(this, reference, record));
+                            }
+                            else { containers.Add(new ContainerContent(this, reference, record)); }
+                            break;
+                        case ESM.Type.Weapon:
+                        case ESM.Type.Armor:
+                        case ESM.Type.Clothing:
+                        case ESM.Type.Ingredient:
+                        case ESM.Type.Alchemy:
+                        case ESM.Type.Apparatus:
+                        case ESM.Type.Book:
+                        case ESM.Type.MiscItem:
+                        case ESM.Type.Lockpick:
+                        case ESM.Type.Probe:
+                        case ESM.Type.RepairItem:
+                            items.Add(new ItemContent(this, reference, record));
+                            break;
+                    }
                 }
             }
 
@@ -162,7 +173,7 @@ namespace JortPob
             contents.AddRange(containers);
             contents.AddRange(pickables);
             contents.AddRange(items);
-
+            contents.AddRange(dummies);
 
             /* Calculate bounding box */
             float x1 = float.MaxValue, y1 = float.MaxValue, z1 = float.MaxValue, x2 = float.MinValue, y2 = float.MinValue, z2 = float.MinValue;

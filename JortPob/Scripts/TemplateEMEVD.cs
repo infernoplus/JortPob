@@ -361,5 +361,83 @@ namespace JortPob.Scripts
                 $"EventValueOperation({getNextParamName()}, {getNextParamName()}, 1, 0, 1, 0);", // increment timer by 1
                 $"EndUnconditionally(EventEndType.Restart);");     // restart!
         }
+
+        public static EMEVD.Event CreateAreaBossFogEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"SkipIfEventFlag(2, OFF, TargetEventFlagType.EventFlag, {getNextParamName()});",  // if boss dead flag is set ...
+                $"ChangeAssetEnableState({getNextParamName()}, Disabled);",                       // disable fog
+                $"EndUnconditionally(EventEndType.End);",                                        // end event
+
+                $"CreateAssetfollowingSFX({getNextParamName()}, 101, {getNextParamName()});",  // create fog door sfx
+
+                $"IfActionButtonInArea(MAIN, 10000, {getNextParamName()});",       // wait until player pushes action button on fog
+                $"RotateCharacter(10000, {getNextParamName()}, 60060, false);",   // rotate player to face fog and play the walk through animation
+
+                $"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, {getNextParamName()});",    // wait until boss dies
+                $"DeleteAssetfollowingSFX({getNextParamName()}, true);",                          // delete fog sfx
+                $"ChangeAssetEnableState({getNextParamName()}, Disabled);");                     // delete fog asset
+        }
+
+        public static EMEVD.Event CreateAreaBossFightEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"SkipIfEventFlag(2, OFF, TargetEventFlagType.EventFlag, {getNextParamName()});",   // if boss dead flag is set ...
+                $"ChangeCharacterEnableState({getNextParamName()}, Disabled);",                    // disable boss
+                $"EndUnconditionally(EventEndType.End);",                                         // end event
+
+                $"SetCharacterAIState({getNextParamName()}, Disabled);",                        // initialize boss as ai off
+                $"ChangeCharacterCollisionState({getNextParamName()}, Disabled);",             // and collision off
+
+                $"IfInoutsideArea(MAIN, InsideOutsideState.Inside, 10000, {getNextParamName()}, 1);", // wait until player enters boss room region
+                $"SetCharacterAIState({getNextParamName()}, Enabled);",              // enable boss ai
+                $"ChangeCharacterCollisionState({getNextParamName()}, Enabled);",   // enable boss collision
+                $"DisplayBossHealthBar(Enabled, {getNextParamName()}, 0, {getNextParamName()});", // show boss healthbar
+                $"SetBossBgm({getNextParamName()}, 0);",  // start music (SIC) (should be SetBossBGM but something weird happens with SoulsIds lookup so this is correct)
+                $"IssueBossRoomEntryNotification(0);", // probably not needed since we aren't supporting co-op but done
+                $"SendInvadingPhantomsHome(0);",      // same ^^
+
+                $"IfCharacterHPValue(MAIN, {getNextParamName()}, 5, 0, 0, 1);",  // wait till boss dies ( 5 is <= and 0 is == )
+                $"SetBossBgm({getNextParamName()}, -2);",  // stop music
+                $"WaitFixedTimeSeconds(4);",          // delay
+                $"PlaySE({getNextParamName()}, SoundType.SFX, 888880000);",  // some boss kill SE
+                $"HandleBossDefeatAndDisplayBanner({getNextParamName()}, TextBannerType.EnemyFelled);", // gzzzzzz nerd
+                $"SetEventFlag(TargetEventFlagType.EventFlag, {getNextParamName()}, ON);",  // set boss dead flag
+                $"WaitFixedTimeSeconds(4);",          // delay
+                $"SetSpEffect(10000, {getNextParamName()});", // get souls
+                $"AwardItemLot({getNextParamName()});");   // sick lootage
+        }
+
+        public static EMEVD.Event CreateFieldBossFightEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"SkipIfEventFlag(1, OFF, TargetEventFlagType.EventFlag, {getNextParamName()});",   // if boss dead flag is set ...
+                $"EndUnconditionally(EventEndType.End);",                                         // end event
+
+                $"IfCharacterAIState(MAIN, {getNextParamName()}, AIStateType.Combat, 0, 1);", // wait until boss in combat
+                $"DisplayBossHealthBar(Enabled, {getNextParamName()}, 0, {getNextParamName()});", // show boss healthbar
+
+                $"IfCharacterAIState(MAIN, {getNextParamName()}, AIStateType.Combat, 1, 1);",          // if boss is out of combat...
+                $"DisplayBossHealthBar(Disabled, {getNextParamName()}, 0, {getNextParamName()});", // hide healthbar
+
+                $"EndUnconditionally(EventEndType.Restart);");     // restart!
+        }
+
+        public static EMEVD.Event CreateFieldBossDefeatEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"SkipIfEventFlag(2, OFF, TargetEventFlagType.EventFlag, {getNextParamName()});",   // if boss dead flag is set ...
+                $"ChangeCharacterEnableState({getNextParamName()}, Disabled);",                    // disable boss
+                $"EndUnconditionally(EventEndType.End);",                                         // end event
+
+                $"IfCharacterHPValue(MAIN, {getNextParamName()}, 5, 0, 0, 1);",  // wait till boss dies ( 5 is <= and 0 is == )
+                $"WaitFixedTimeSeconds(4);",          // delay
+                $"PlaySE({getNextParamName()}, SoundType.SFX, 888880000);",  // some boss kill SE
+                $"HandleBossDefeatAndDisplayBanner({getNextParamName()}, TextBannerType.EnemyFelled);", // gzzzzzz nerd
+                $"SetEventFlag(TargetEventFlagType.EventFlag, {getNextParamName()}, ON);",  // set boss dead flag
+                $"WaitFixedTimeSeconds(4);",          // delay
+                $"SetSpEffect(10000, {getNextParamName()});", // get souls
+                $"AwardItemLot({getNextParamName()});");   // sick lootage
+        }
     }
 }

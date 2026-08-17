@@ -1,0 +1,30 @@
+[
+  {
+    "cell": "Default",
+    "comment": "Fallback default boss if a cell does not have an entry defined here.",
+    "music": 931000,
+    "boss": {
+      "name": "Default Boss",
+      "character": "c3970",
+      "npc": {
+        "row": 39701910,
+        "data": {}
+      },
+      "think": {
+        "row": 39701100,
+        "data": {}
+      },
+      "souls": 1000,
+      "drops": [
+        {
+          "Item1": "steel dagger",
+          "Item2": 1
+        },
+        {
+          "Item1": "Misc_SoulGem_Common",
+          "Item2": 1
+        }
+      ]
+    }
+  }
+]

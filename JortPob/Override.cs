@@ -1,14 +1,12 @@
 ﻿using JortPob.Common;
 using Microsoft.Scripting.Utils;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
-using static IronPython.Modules._ast;
+using System.Windows.Markup;
 
 namespace JortPob
 {
@@ -39,6 +37,8 @@ namespace JortPob
         private static Dictionary<Int2, float> WORLD_DIFFICULTY_MAP;
         private static Dictionary<string, int[]> WORLD_EXTERIOR_LINKS;
         private static WorldDifficultyInfo WORLD_DIFFICULTY_SETTINGS;
+        private static List<AreaBoss> AREA_BOSS;
+        private static List<FieldBoss> FIELD_BOSS;
 
         public static bool CheckDoNotPlace(string id)
         {
@@ -182,6 +182,20 @@ namespace JortPob
 
         public static WorldDifficultyInfo GetDifficultyInfo() { return WORLD_DIFFICULTY_SETTINGS; }
 
+        /* Interior only, uses cell name */
+        public static AreaBoss GetAreaBoss(string cell)
+        {
+            // if remap isn't present then return the "Default" one at the top. Note that if the Default one isn't in the json this will stack overflow lol
+            return AREA_BOSS.FirstOrDefault(ab => ab.cell.ToLower().Trim() == cell.ToLower().Trim()) ?? GetAreaBoss("Default");
+        }
+
+        /* Exterior only, uses cell grid coordinate */
+        public static FieldBoss GetFieldBoss(Int2 cell)
+        {
+            // if remap isn't present then return the default one at cell [0,0]. Note that if the Default one isn't in the json this will stack overflow lol
+            return FIELD_BOSS.FirstOrDefault(fb => fb.cell == cell) ?? GetFieldBoss(new(0, 0)); 
+        }
+
         /* load all the override jsons into this class */
         public static void Initialize()
         {
@@ -250,6 +264,10 @@ namespace JortPob
 
             /* Load map icon overrides */
             MAP_ICONS = JsonConvert.DeserializeObject<Dictionary<string, Layout.MapPoint.Icon>>(File.ReadAllText(Utility.ResourcePath(@"overrides\map_icons.json")));
+            MAP_ICONS = MAP_ICONS.ToDictionary(
+                kvp => kvp.Key.ToLower().Trim(),
+                kvp => kvp.Value
+            );
 
             /* Load hair id remap to elden ring hair part ids */
             HAIR_REMAP = JsonConvert.DeserializeObject<Dictionary<string, Hair>>(File.ReadAllText(Utility.ResourcePath(@"overrides\face\hair.json")));
@@ -287,6 +305,12 @@ namespace JortPob
 
             /* Loading json for world exterior links. This lists out every interior cell name and gives a grid coordinate for where it is located in the exterior */
             WORLD_EXTERIOR_LINKS = JsonConvert.DeserializeObject<List<Dictionary<string, int[]>>>(File.ReadAllText(Utility.ResourcePath(@"overrides\world_exterior_links.json"))).ToList()[0];
+
+            /* Load Area Boss mappings */
+            AREA_BOSS = JsonConvert.DeserializeObject<List<AreaBoss>>(File.ReadAllText(Utility.ResourcePath(@"overrides\area_boss.json")));
+
+            /* Load Field Boss mappings */
+            FIELD_BOSS = JsonConvert.DeserializeObject<List<FieldBoss>>(File.ReadAllText(Utility.ResourcePath(@"overrides\field_boss.json")));
         }
 
         /* Classes for serializing */
@@ -349,15 +373,39 @@ namespace JortPob
             public string id { get; set; }
         }
 
-        public record EnemyRemapData(int row, Dictionary<string, string> data)
+        public class EnemyRemapData
         {
+            public readonly int row;
+            public readonly Dictionary<string, string> data;
+
+            [JsonConstructor]
+            public EnemyRemapData(int row, Dictionary<string, string> data)
+            {
+                this.row = row;
+                this.data = data;
+            }
+
             public EnemyRemapData(int row)
                 : this(row, new())
             {}
         }
 
-        public record EnemyRemap(string id, string comment, string character, EnemyRemapData npc, EnemyRemapData think)
+        public class EnemyRemap
         {
+            public readonly string id, character;
+            public readonly string comment;
+            public EnemyRemapData npc, think;
+
+            [JsonConstructor]
+            public EnemyRemap(string id, string comment, string character, EnemyRemapData npc, EnemyRemapData think)
+            {
+                this.id = id;
+                this.character = character;
+                this.comment = comment;
+                this.npc = npc;
+                this.think = think;
+            }
+
             /* Default constructor, points to a Goat */
             public EnemyRemap()
                 : this("DEFAULT", "Default constructor, used when no remap found. Creates a goat.", "c6060", new(60600010), new(60600000))
@@ -395,6 +443,10 @@ namespace JortPob
                 }
             }
         }
+
+        public record FieldBoss(Int2 cell, string comment, float radius, BossRemap boss);
+        public record AreaBoss(string cell, string comment, int music, BossRemap boss);
+        public record BossRemap(string name, string character, EnemyRemapData npc, EnemyRemapData think, int souls, List<(string item, int quantity)> drops);
 
         public record LoadingTip(string title, string text);
 

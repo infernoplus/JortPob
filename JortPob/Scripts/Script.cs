@@ -3,6 +3,7 @@ using SoulsFormats;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 /* Individual script for an msb. */
 /* managed by ScriptManager 
@@ -12,6 +13,7 @@ using System.IO;
 
 namespace JortPob.Scripts
 {
+    using static JortPob.Override;
     using ScriptFlagLookupKey = (Script.Flag.Designation, string);
 
     public class Script : BaseScript
@@ -193,6 +195,127 @@ namespace JortPob.Scripts
                 init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.PlaySE]}, {playFlag.id}, {entity}, 5, {seId}, {playFlag.id});"));  // 5 is SFX type
             }
             return playFlag;
+        }
+
+        /* Register area boss fight */
+        public void RegisterAreaBossFight(Paramanager paramanager, ItemManager itemManager, TextManager textManager, Override.AreaBoss areaBoss, MSBE.Part.Enemy bossEnemy, MSBE.Region.Other roomBounds, List<(MSBE.Part.Asset asset, MSBE.Region.Other target)> fogs)
+        {
+            // Setup a flag for the boss fight
+            Flag areaBossDead = CreateFlag(Flag.Category.Saved, Flag.Type.Bit, Flag.Designation.BossDead, $"{bossEnemy.EntityID}");
+
+            // Generate soul gain speff for boss
+            int speffId = paramanager.GenerateSoulGainSpeff(areaBoss.boss.souls);
+
+            // Generate item lot for boss drop
+            List<(ItemManager.ItemInfo item, int quantity)> items = 
+                areaBoss.boss.drops.Select(entry => (item: itemManager.GetItem(entry.item), quantity: entry.quantity)).ToList(); // convert list of item ids and quants to actual ItemInfo and quants
+            int itemLot = paramanager.GenerateBossItemLot(areaBoss.boss, items);
+
+            // Generate name text for boss
+            int nameId = textManager.AddNpcName(areaBoss.boss.name);
+
+            // Initialize commonevents for fog doors
+            foreach ((MSBE.Part.Asset asset, MSBE.Region.Other target) fog in fogs)
+            {
+                List<string> parameters = new()
+                {
+                    areaBossDead.id.ToString(),
+                    fog.asset.EntityID.ToString(),
+                    fog.asset.EntityID.ToString(),
+                    "3",   // fog door sfx id
+                    fog.asset.EntityID.ToString(),
+                    fog.target.EntityID.ToString(),
+                    areaBossDead.id.ToString(),
+                    fog.asset.EntityID.ToString(),
+                    fog.asset.EntityID.ToString()
+                };
+                init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.AreaBossFog]}, {string.Join(", ", parameters)});"));
+            }
+
+            // Initialize commonevent for the boss fight itself
+            {
+                List<string> parameters = new()
+                {
+                    areaBossDead.id.ToString(),
+                    bossEnemy.EntityID.ToString(),
+
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+
+                    roomBounds.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    nameId.ToString(),
+                    areaBoss.music.ToString(),
+
+                    bossEnemy.EntityID.ToString(),
+                    areaBoss.music.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    areaBossDead.id.ToString(),
+                    speffId.ToString(),
+                    itemLot.ToString()
+
+                };
+                init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.AreaBossFight]}, {string.Join(", ", parameters)});"));
+            }
+        }
+
+        /* Register field boss fight */
+        public void RegisterFieldBossFight(Paramanager paramanager, ItemManager itemManager, TextManager textManager, Override.FieldBoss fieldBoss, MSBE.Part.Enemy bossEnemy, MSBE.Region.Other fightBounds)
+        {
+            // Setup a flag for the boss fight
+            Flag fieldBossDead = CreateFlag(Flag.Category.Saved, Flag.Type.Bit, Flag.Designation.BossDead, $"{bossEnemy.EntityID}");
+
+            // Generate soul gain speff for boss
+            int speffId = paramanager.GenerateSoulGainSpeff(fieldBoss.boss.souls);
+
+            // Generate item lot for boss drop
+            List<(ItemManager.ItemInfo item, int quantity)> items = new();
+            foreach ((string item, int quantity) entry in fieldBoss.boss.drops)
+            {
+                ItemManager.ItemInfo itemInfo = itemManager.GetItem(entry.item);
+                items.Add((itemInfo, entry.quantity));
+            }
+            int itemLot = paramanager.GenerateBossItemLot(fieldBoss.boss, items);
+
+            // Generate name text for boss
+            int nameId = textManager.AddNpcName(fieldBoss.boss.name);
+
+            // Initialize commonevent for the boss fight
+            {
+                List<string> parameters = new()
+                {
+                    fieldBossDead.id.ToString(),
+
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    nameId.ToString(),
+
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    nameId.ToString(),
+                };
+                init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.FieldBossFight]}, {string.Join(", ", parameters)});"));
+            }
+
+            // Initialize commonevent for the boss defeat
+            {
+                List<string> parameters = new()
+                {
+                    fieldBossDead.id.ToString(),
+                    bossEnemy.EntityID.ToString(),
+
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    bossEnemy.EntityID.ToString(),
+                    fieldBossDead.id.ToString(),
+                    speffId.ToString(),
+                    itemLot.ToString()
+                };
+                init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.FieldBossDefeat]}, {string.Join(", ", parameters)});"));
+            }
         }
 
         /* Crime events are charcters reactions to being attacked or stolen from */
@@ -430,6 +553,7 @@ namespace JortPob.Scripts
                 TriggerEnable, TriggerDisable,  // Flags set by ESD to trigger an EMEVD event to enable or disable an object
                 DiscoverLocation,  // marks location on your map when set
                 RegisterBed,      // For register bonfire calls in EMEVD
+                BossDead,     // what do you think?
                 Hardcode     // Used by any jank hardcoding I end up doing
             }
 
