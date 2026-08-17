@@ -410,8 +410,8 @@ namespace JortPob
                 List<DialogInfoRecord> infos = new();
                 foreach(DialogInfoRecord info in dialogRecord.infos)
                 {
-                    if (info.type == DialogRecord.Type.Flee) { continue; } // discarding this for now
-                    if (info.type == DialogRecord.Type.Intruder) { continue; } // discarding this for now
+                    // if (info.type == DialogRecord.Type.Flee) { continue; } // discarding this for now
+                    // if (info.type == DialogRecord.Type.Intruder) { continue; } // discarding this for now
 
                     if (npc.race == CharacterContent.Race.Creature && info.speaker != npc.id) { continue; } // creatures only have lines with the speaker condition set for them explicitly
 

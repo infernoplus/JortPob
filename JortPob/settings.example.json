@@ -8,68 +8,51 @@
   "WWISE_PATH": "P:\\ATH\\TO\\WWISE\\",
   "OUTPUT_PATH": "P:\\ATH\\TO\\MOD\\FOLDER\\",
   "RAD_PATH": "P:\\ATH\\TO\\RADVideo\\",
+  "VA_LINES_PATH": "P:\\ATH\\TO\\LINES",
   "THREAD_COUNT": 16,
   "LOAD_ORDER": [
     "Morrowind.esm"
   ],
-
   // When running a subprocess this is the default timeout time in millis.
   "DEFAULT_PROCESS_TIMEOUT": 15000,
-
   // When doing anything random we use this as our seed so results are consistent between builds
   "RANDOM_SEED": 42,
-
   // Add skyrim OST to game music
   "INCLUDE_SKYRIM_MUSIC": true,
-
   // Add morrowind OST to game music (you can have both if you want!)
   "INCLUDE_MORROWIND_MUSIC": true,
-
   // Reuse certain slow to build objects between builds (BNK, NAV). Great for debugging but you will need to manually delete files to rebuild them if this is on
   "DEBUG_REUSE_FILES": false,
-
   // Saves a minute or 2 on a build
   "DEBUG_SKIP_CUSTOM_MAP": false,
-
   // Saves anywhere between 2 and 45 minutes on a build. Makes all dialog skip instantly though.
   "DEBUG_SKIP_SOUND": false,
-
+  // Rebuild only lines that have a matching WAV in the mod's lines directory; preserve other cached WEMs.
+  "DEBUG_REPLACE_VA_LINES_ONLY": false,
   // Saves a solid chunk of time on builds
   "DEBUG_SKIP_NAVMESH": false,
-
   // Saves 3 to 5 minutes on a build
   "DEBUG_SKIP_MENU_TEXTURES": false,
-
   // Saves a little time on builds
   "DEBUG_SKIP_CUTSCENES": false,
-
   // Saves anywhere between 1 and 15 minutes on a build. Disables all papyrus scripts and all NPC dialog.
   "DEBUG_SKIP_SCRIPTS": false,
-
   // Big speedup on builds, allows multithreading of landscape processing, but makes terrain borders ugly
   "DEBUG_SKIP_TERRAIN_BORDER_BLENDING": true,
-
   // Skip sorting param rows and fmg rows. This is not strictly required but I prefere to mimic the FS formats as close as possible and those are sequential.
   "DEBUG_SKIP_FMG_PARAM_SORTING": false,
-
   // Saves a minute or 2 on a build. All this does is cleanup the horizon line for the ocean.
   "DEBUG_SKIP_NICE_WATER_CIRCLIFICATION": true,
-
   // Disables all doors that are NOT load doors. This is needed for now since we do not have animated doors.
   "DEBUG_DISCARD_ANIMATED_DOORS": true,
-
   // Old flag for skipping non-script referenced items. No real reason to use in current versions.
   "DEBUG_SKIP_NON_ESSENTIAL_ITEMS": false,
-
   // If true we don't overwrite base game overworld tiles with blanks. Probably no reason to set this to true but it's here
   "DEBUG_DONT_WRITE_BLANK_MSBS": false,
-
   // Binary HKX has some issues that make it possibly less stable, but they also load faster and are visible in Smithbox so it's useful to have this set to true in debug.
   "DEBUG_HKX_FORCE_BINARY": true,
-
   // If true we use DFLT in place of KRAK to save time on compression. Use KRAK in production!
   "DEBUG_USE_DFLT_COMPRESSION": true,
-
   // Set to null to build entire map. 
   // format x1, y1, x2, y2. smaller values first, 1 = 1 cell, use cell coordinates
   // seyda neen area (small) = [-3, -10, -1, -8 ],
@@ -82,11 +65,17 @@
   // lava area near Galom Daeus = [8, -2, 12, 2],
   // lava and swamp areas combined = [-10, -10, 15, 5],
   // half the map = [-10, -15, 20, 0],
-  "DEBUG_EXCLUSIVE_BUILD_BY_BOX": [ -3, -10, -1, -8 ],
-
+  "DEBUG_EXCLUSIVE_BUILD_BY_BOX": [
+    -3,
+    -10,
+    -1,
+    -8
+  ],
   // if a cell name contains any of the strings in this list (even partial matches) we build it, otherwise skip.
   // set MATCHES to null or remove from settings.json if for proper normal building
   // Examples:
   // ["Seyda Neen", "Addamasartus", "Nimawia Grotto", "Thelas Ancestral Tomb", "Samarys Ancestral Tomb", "Andrano Ancestral Tomb", "Abaesen-Pulu Egg Mine" ],
-  "DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME_MATCHES": [ "Seyda Neen" ]
+  "DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME_MATCHES": [
+    "Seyda Neen"
+  ]
 }

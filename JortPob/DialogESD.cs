@@ -49,7 +49,7 @@ namespace JortPob
             areaScript.RegisterHaltEvent(npcContent);
 
             // Split up talk data by type
-            NpcManager.TopicData greeting = GetTalk(topicData, DialogRecord.Type.Greeting)[0];
+            NpcManager.TopicData greeting = GetTalk(topicData, DialogRecord.Type.Greeting).FirstOrDefault() ?? new();
             NpcManager.TopicData hit = GetTalk(topicData, DialogRecord.Type.Hit).FirstOrDefault() ?? new();
             NpcManager.TopicData attack = GetTalk(topicData, DialogRecord.Type.Attack).FirstOrDefault() ?? new();
             NpcManager.TopicData thief = GetTalk(topicData, DialogRecord.Type.Thief).FirstOrDefault() ?? new();
