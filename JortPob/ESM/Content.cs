@@ -128,6 +128,9 @@ namespace JortPob
         public readonly List<Service> services;
 
         public List<(string id, int quantity)> inventory;
+        public List<(string id, int quantity, bool initial)> flex; // flex is for items that can be added or removed by scripts. these items will be awarded via itemlot on death seperate from regular item drop and have script flags for enable/disable. "inital" determines if items are present at game start or not
+        public ItemManager.InventoryInfo inventoryInfo; // will be null intitially. this becomes the actually resolved inventory for this content later on in the build
+
         public List<string> spells; // spells this character knows or sells as a vendor
 
         public List<(string id, int quantity)> barter; // can be null
@@ -434,6 +437,7 @@ namespace JortPob
             rotation += new Vector3(0f, 180f, 8);  // models are rotated during conversion, placements like this are rotated here during serializiation to match
 
             inventory = new();
+            flex = new();
             JsonArray invJson = record.json["inventory"].AsArray();
             foreach(JsonNode node in invJson)
             {
@@ -484,6 +488,7 @@ namespace JortPob
             treasure = content.treasure;
             services = content.services;
             inventory = content.inventory;
+            flex = content.flex;
             spells = content.spells;
             travel = content.travel;
             barter = content.barter;
@@ -721,6 +726,8 @@ namespace JortPob
         public readonly string ownerFaction; // faction id that owns this container, player can take it if they are in that faction. can be null
 
         public List<(string id, int quantity)> inventory;
+        public List<(string id, int quantity, bool initial)> flex; // see description on flex from charactercontent
+        public ItemManager.InventoryInfo inventoryInfo; // will be null intitially. this becomes the actually resolved inventory for this contetn later on in the build
 
         public Script.Flag treasure; // if this container content has a treasure event and is a lootable container, this flag will be the "has been looted" flag. otherwise null
 
@@ -731,6 +738,7 @@ namespace JortPob
             if (json["owner_faction"] != null) { ownerFaction = json["owner_faction"].GetValue<string>(); }
 
             inventory = new();
+            flex = new();
             JsonArray invJson = record.json["inventory"].AsArray();
             foreach (JsonNode node in invJson)
             {

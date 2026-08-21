@@ -34,7 +34,7 @@ namespace JortPob.Scripts
         public enum Event
         {
             SpawnHandler, SpawnHandlerDisableable, SpawnHandlerPhased, IntSpawnHandler, IntSpawnHandlerDisableable, IntSpawnHandlerPhased, Halt,
-            LoadDoor, NpcHostilityHandler, Message, Essential, DeadBody, 
+            LoadDoor, NpcHostilityHandler, Message, Essential, DeadBody, CharacterFlexInventory,
             ItemAsset, OwnedItemAsset, ItemAssetWithDisable, OwnedItemAssetWithDisable, OwnedContainer, TravelWarp, RemoveItem, PermanentSpeff,
             StaticDisable, PlaySE, TriggerEnable, TriggerDisable, NpcModStat, NpcInfight, GetSecondsPassed
         }
@@ -158,6 +158,9 @@ namespace JortPob.Scripts
 
             /* Create event for emulating the GetSecondsPassed papyrus call */
             RegisterTemplateEvent(Event.GetSecondsPassed, "CommonFunc:GetSecondsPassed", TemplateEMEVD.CreateGetSecondsPassedEvent);
+
+            /* Create event for awarding a flex inventory to player when a character dies */
+            RegisterTemplateEvent(Event.CharacterFlexInventory, "CommonFunc:CharacterFlexInventory", TemplateEMEVD.CreateCharacterFlexInventoryEvent);
         }
 
         public override string[] FilesToLink()

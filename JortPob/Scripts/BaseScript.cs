@@ -292,6 +292,25 @@ namespace JortPob.Scripts
             return triggerEnableFlag;
         }
 
+        /* Registered from Main.cs in msb generation sections for NPCs and Creatures */
+        /* Register a simple event where if an npc dies and they have a flex inventory we award an itemlot to the player with that inv */
+        public void RegisterCharacterFlexInventory(Paramanager paramanager, CharacterContent content)
+        {
+            /* Get characters dead flag */
+            Script.Flag charDead = manager.GetFlag(Script.Flag.Designation.Dead, content);
+            /* And generate an itemlot for the flex inventory */
+            int itemLot = paramanager.GenerateFlexItemLot(this, content);
+
+            /* Register event */
+            List<string> parameters = new()
+            {
+                charDead.id.ToString(),
+                charDead.id.ToString(),
+                itemLot.ToString()
+            };
+            init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.CharacterFlexInventory]}, {string.Join(", ", parameters)});"));
+        }
+
         /* Abstracts supported by only ScriptArea */
         public abstract  (uint bed, uint respawn) RegisterBed();
         public abstract void RegisterLoadDoor(Paramanager paramanager, DoorContent door);

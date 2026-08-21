@@ -1,5 +1,6 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
+using Mutagen.Bethesda.Skyrim;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using static JortPob.ItemManager;
 using static JortPob.Scripts.Script;
 
 namespace JortPob
@@ -121,6 +123,22 @@ namespace JortPob
                 }
 
                 unlocks = new();
+            }
+
+            /* Return all calls of a given type inside this dialog info record */
+            public List<Papyrus.Call> GetCalls(Papyrus.Call.Type type)
+            {
+                if(script == null) { return new(); }
+                return script.calls.SelectMany(call => script.calls)
+                    .Where(call => call.type == type)
+                    .ToList();
+            }
+
+            public List<Papyrus.Call> GetCalls()
+            {
+                if (script == null) { return new(); }
+                return script.calls.SelectMany(call => script.calls)
+                    .ToList();
             }
 
             /* Very special function for optimization */
@@ -900,6 +918,21 @@ namespace JortPob
                                         lines.Add($"SetEventFlag({removeItemFlag.id}, FlagState.On)");
                                     }
                                 }
+                                // not the player
+                                else
+                                {
+                                    // find our target content
+                                    Content target;
+                                    if (call.target == null) { target = npcContent; }
+                                    else { target = layout.FindScriptReference(npcContent, call.target); }
+                                    if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                    // grab flag for the flex item we are goobering
+                                    Script.Flag flexFlag = npcContent.inventoryInfo.GetFlexFlag(call.parameters[0]);
+
+                                    // set value
+                                    lines.Add($"SetEventFlag({flexFlag.id}, FlagState.On)"); // ON since the flag is "item is picked up" so removing is TRUE
+                                }
                                 break;
                             }
                         case Papyrus.Call.Type.AiEscort:
@@ -1095,7 +1128,7 @@ namespace JortPob
                             }
                         case Papyrus.Call.Type.AddItem:
                             {
-                                // only supporting items/gold added to player rn. will eventually support other stuff
+                                // player
                                 if (call.target == "player")
                                 {
                                     // Gold specifically handled as souls
@@ -1111,6 +1144,21 @@ namespace JortPob
                                         int row = paramanager.GenerateAddItemLot(itemInfo, int.Parse(call.parameters[1]));
                                         lines.Add($"AwardItemLot({row})");
                                     }
+                                }
+                                // not the player
+                                else
+                                {
+                                    // find our target content
+                                    Content target;
+                                    if (call.target == null) { target = npcContent; }
+                                    else { target = layout.FindScriptReference(npcContent, call.target); }
+                                    if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                    // grab flag for the flex item we are goobering
+                                    Script.Flag flexFlag = npcContent.inventoryInfo.GetFlexFlag(call.parameters[0]);
+
+                                    // set value
+                                    lines.Add($"SetEventFlag({flexFlag.id}, FlagState.Off)"); // off since the flag is "item is already picked up" so adding it is false
                                 }
                                 break;
                             }

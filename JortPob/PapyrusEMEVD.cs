@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using static JortPob.ItemManager;
 using static JortPob.Papyrus;
 
 namespace JortPob
@@ -1259,7 +1260,31 @@ namespace JortPob
                             // not the player
                             else
                             {
-                                // unsupported
+                                // find our target content
+                                Content target;
+                                if (call.target == null) { target = content; }
+                                else { target = layout.FindScriptReference(content, call.target); }
+                                if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                // grab flag for the flex item we are goobering
+                                Script.Flag flexFlag;
+                                InventoryInfo inventory;
+                                switch (target)
+                                {
+                                    case CharacterContent npc: inventory = npc.inventoryInfo; break;
+                                    case ContainerContent cnt: inventory = cnt.inventoryInfo; break;
+                                    default: throw new Exception($"Content type of '{content.type}' cannot have a flex inventory to resolve!");
+                                }
+                                flexFlag = inventory.GetFlexFlag(call.parameters[0]);
+
+                                // set value
+                                lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {flexFlag.id}, OFF);"); // OFF since the flag is "item is already picked up" so adding it is FALSE
+
+                                // if container, update it so it reflects the change in itemlot
+                                if (target is ContainerContent)
+                                {
+                                    lines.Add($"RerollAssetTreasure({target.entity});");
+                                }
                             }
                             break;
                         }
@@ -1288,7 +1313,31 @@ namespace JortPob
                             // not the player
                             else
                             {
-                                // unsupported
+                                // find our target content
+                                Content target;
+                                if (call.target == null) { target = content; }
+                                else { target = layout.FindScriptReference(content, call.target); }
+                                if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                // grab flag for the flex item we are goobering
+                                Script.Flag flexFlag;
+                                InventoryInfo inventory;
+                                switch (target)
+                                {
+                                    case CharacterContent npc: inventory = npc.inventoryInfo; break;
+                                    case ContainerContent cnt: inventory = cnt.inventoryInfo; break;
+                                    default: throw new Exception($"Content type of '{content.type}' cannot have a flex inventory to resolve!");
+                                }
+                                flexFlag = inventory.GetFlexFlag(call.parameters[0]);
+
+                                // set value
+                                lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {flexFlag.id}, ON);"); // ON since the flag is "item is already picked up" so removing is TRUE
+
+                                // if container, update it so it reflects the change in itemlot
+                                if(target is ContainerContent)
+                                {
+                                    lines.Add($"RerollAssetTreasure({target.entity});");
+                                }
                             }
                             break;
                         }

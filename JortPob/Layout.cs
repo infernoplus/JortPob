@@ -1,12 +1,14 @@
-﻿using JortPob.Common;
+﻿using HKLib.hk2018.hk;
+using HKLib.hk2018.hkaiCollisionAvoidance;
+using JortPob.Common;
 using JortPob.Scripts;
+using Microsoft.Scripting.Utils;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using Microsoft.Scripting.Utils;
 using static JortPob.InteriorGroup;
 
 namespace JortPob
@@ -87,6 +89,8 @@ namespace JortPob
             // able refs is objects targeted by Enable, Disable, and GetDisabled
             var (allCalls, allReferences, toggleableReferences) = esm.GetScriptReferences();
             Lort.TaskIterate(); // Progress bar update
+
+            ResolveFlexInventories(esm);  // resolves flex inventories for AddItem and RemoveItem calls. relevant for CharacterContent and ContainerContent
             
             SetFollowerFlags(esm, allCalls);
 
@@ -860,6 +864,147 @@ namespace JortPob
                     }
                 }
                 else { Lort.Log($" ## WARNING ## Cell fell outside of reality [{cell.coordinate.x}, {cell.coordinate.y}] -- {cell.name} :: B02", Lort.Type.Debug); }
+            }
+        }
+
+        private static void ResolveFlexInventories(ESM esm)
+        {
+            /* Iterate through all scripts/dialog and find every call that involves AddItem or RemoveItem */
+            List<(string script, string speaker, Papyrus.Call call)> allCalls = new();
+            void AddRange(string script, string speaker, List<Papyrus.Call> calls)
+            {
+                foreach(Papyrus.Call call in calls) { allCalls.Add((script, speaker, call)); }
+            }
+            foreach(Papyrus papyrus in esm.scripts)
+            {
+                AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.AddItem));
+                AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.RemoveItem));
+            }
+            foreach(Dialog.DialogRecord dialog in esm.dialog)
+            {
+                foreach (Dialog.DialogInfoRecord info in dialog.infos)
+                {
+                    string speaker = info.speaker?.ToLower().Trim() ?? null;
+                    AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.AddItem));
+                    AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.RemoveItem));
+                }
+            }
+
+            /* Deduplicate calls with identical target and item id, and remove all player calls */
+            for(int i=0;i<allCalls.Count;i++)
+            {
+                var entry = allCalls[i];
+                if (entry.call.target != null && entry.call.target.ToLower().Trim() == "player") { allCalls.RemoveAt(i--); continue; } // kill player refs
+                if (entry.call.target == null && entry.script == null && entry.speaker == null)
+                {
+                    Lort.Log($"Discarding fully anonymous call '{entry.call.RAW}' during flex inventory resolution.", Lort.Type.Debug);
+                    allCalls.RemoveAt(i--); continue; // kill fully anonymous calls
+                } 
+
+                for (int j=i+1;j<allCalls.Count;j++)
+                {
+                    var other = allCalls[j];
+                    // Dedupe targeted papyrus script call
+                    if(other.script != null && entry.call.target != null)
+                    {
+                        if (entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                    // Dedupe anonyous papyrus script call
+                    else if(other.script != null && entry.call.target == null)
+                    {
+                        if (entry.script == other.script && entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                    // Dedupe dialog result call
+                    else
+                    {
+                        if (entry.speaker == other.speaker && entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                }
+            }
+
+            /* Debug print */
+            //string debug = "";
+            //foreach((string source, Papyrus.Call call) entry in allCalls) { debug += $"{entry.source.PadRight(24)} ::: \t\t\t{entry.call.RAW}\r\n"; }
+
+            /* Iterate through all CharacterContent and ContainterContent and adust their inventory and flex based on matching calls */
+            string debugy = "";
+            foreach (Cell cell in esm.exterior.Concat(esm.interior))
+            {
+                // Method that actually does the work -- modifies inventory and flex directly
+                void HandleFlex(Content content, List<(string id, int quantity)> inventory, List<(string id, int quantity, bool initial)> flex)
+                {
+                    // add items to flex inventory and removes items from base inventory depending on the type of call and presence of items.
+                    void HandleItemCall(Papyrus.Call call)
+                    {
+                        string item = call.parameters[0].ToLower().Trim();
+                        int quantity = int.Parse(call.parameters[1]);
+
+                        switch (call.type)
+                        {
+                            case Papyrus.Call.Type.AddItem:
+                                if (!flex.Select(e => e.id).Contains(item)) { flex.Add((item, quantity, false)); } // add to flex if not present
+                                break;
+                            case Papyrus.Call.Type.RemoveItem:
+                                bool inBaseInv = inventory.Select(e => e.id).Contains(item);
+                                if (inBaseInv) { inventory.RemoveAll(e => e.id == item); } // remove from base inventory if present
+                                if(!flex.Select(e => e.id).Contains(item)) { flex.Add((item, quantity, inBaseInv)); } // not present in flex yet? just add to flex no worries!
+                                else
+                                {
+                                    var entry = flex.FirstOrDefault(e => e.id == item);
+                                    if(!entry.initial && inBaseInv)
+                                    {
+                                        flex.Remove(entry);
+                                        flex.Add((item, quantity, true)); // if present in flex, and was in base inv, but not marked initial, change that
+                                    }
+                                }
+                                break;
+                        }
+                    }
+
+                    // determine if any calls match this content and handle them
+                    foreach(var entry in allCalls)
+                    {
+                        /* Targeted call */
+                        if (entry.call.target != null && entry.call.target.ToLower().Trim() == content.id.ToLower().Trim())
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                        /* Anonymous call from a papyrus script */
+                        else if (entry.script != null && content.papyrus != null && entry.script == content.papyrus.ToLower().Trim() && entry.call.target == null)
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                        /* Anonymous call from a dialog result with matching speaker id */
+                        else if(entry.speaker != null && entry.speaker == content.id.ToLower().Trim() && entry.call.target == null)
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                    }
+
+                    if(flex.Any())
+                    {
+                        string listy = "";
+                        foreach(var entry in flex)
+                        {
+                            listy += $"({entry.id}, {entry.quantity}, {entry.initial})";
+                        }
+                        debugy += $"{(content.id + " -> ").PadRight(32)}[{listy}]\r\n";
+                    }
+                }
+
+                // Call the method lol lmao
+                foreach(Content content in cell.contents)
+                {
+                    switch(content)
+                    {
+                        case CharacterContent character:
+                            HandleFlex(content, character.inventory, character.flex);
+                            break;
+                        case ContainerContent container:
+                            HandleFlex(content, container.inventory, container.flex);
+                            break;
+                    }
+                }
             }
         }
 

@@ -3,6 +3,7 @@ using SoulsFormats;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 /* Individual script for an msb. */
 /* managed by ScriptManager 
@@ -397,7 +398,7 @@ namespace JortPob.Scripts
             public enum Designation
             {
                 Event,                                          // Flag is an event ID
-                Item,                                           // ItemLot awarded flag
+                Item, FlexItem,                                 // ItemLot awarded flag, and flex item toggle. See 'flex inventories' for more info
                 ItemVisibility,                                 // Flag that determines if an item in a shop is visible for the player to buy
                 Global, Local, Reputation, Journal, CrimeLevel,          // CrimeLevel is gold owed to guards, the Crime below is a per npc variable for if you comitted a crime against them
                 Dead, DeadCount, Disabled, Hostile, CrimeEvent, FriendHitCounter, Pickpocketed, ThiefCrime,      // hostile flag exists for friendly npcs, if you piss em off they stab you
