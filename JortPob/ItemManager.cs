@@ -1,4 +1,6 @@
 ﻿using JortPob.Common;
+using JortPob.Scripts;
+using Mutagen.Bethesda.Skyrim;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -153,7 +155,7 @@ namespace JortPob
                     if (def != null)
                     {
                         /* Check if we have the field for value set, if we don't then add the morrowind field for value */
-                        if(!def.data.ContainsKey("sellValue"))
+                        if (!def.data.ContainsKey("sellValue"))
                         {
                             def.data.Add("sellValue", ((int)Math.Max(1, value * Const.MERCANTILE_SELL_SCALE)).ToString());
                         }
@@ -226,7 +228,7 @@ namespace JortPob
                                 }
 
                                 /* Add iteminfo for weapon, or generate customweapon rows if needed */
-                                if(def.type == Type.Weapon)
+                                if (def.type == Type.Weapon)
                                 {
                                     ItemInfo weapon = new(def.id, Type.Weapon, nextWeaponId, value, scriptItem, json);
                                     items.Add(weapon);
@@ -385,10 +387,10 @@ namespace JortPob
             }
 
             /* Lastly we should parse our json info regarding ash of war items */
-            foreach(Override.SkillInfo skillInfo in Override.GetSkills())
+            foreach (Override.SkillInfo skillInfo in Override.GetSkills())
             {
                 SillyJsonUtils.SetField(paramanager, Paramanager.ParamType.EquipParamGem, skillInfo.row, "sellValue", (int)Math.Max(1, skillInfo.value * Const.MERCANTILE_SELL_SCALE));
-                if(skillInfo.HasTextChanges())
+                if (skillInfo.HasTextChanges())
                 {
                     textManager.RenameGem(skillInfo.row, skillInfo.text.name, skillInfo.text.description);
                 }
@@ -418,11 +420,11 @@ namespace JortPob
         /* But for things like weapons or armor we should make sure those get defined by hand eventually. */
         private void GenerateItem(ESM.Type recordType, JsonNode json)
         {
-            switch(recordType)
+            switch (recordType)
             {
                 case ESM.Type.Weapon:
                     string weaponType = json["data"]["weapon_type"].GetValue<string>().ToLower();
-                    switch(weaponType)
+                    switch (weaponType)
                     {
                         case "marksmanthrown":
                             GenerateItemThrown(json);
@@ -434,7 +436,7 @@ namespace JortPob
                     break;
                 case ESM.Type.Armor:
                     string armorType = json["data"]["armor_type"].GetValue<string>().ToLower();
-                    switch(armorType)
+                    switch (armorType)
                     {
                         case "shield":
                             GenerateItemShield(json);
@@ -447,7 +449,7 @@ namespace JortPob
                     break;
                 case ESM.Type.Clothing:
                     string clothingType = json["data"]["clothing_type"].GetValue<string>().ToLower();
-                    switch(clothingType)
+                    switch (clothingType)
                     {
                         case "amulet":
                         case "ring":
@@ -541,7 +543,7 @@ namespace JortPob
             textManager.AddWeapon(row.ID, json["name"].GetValue<string>(), "Descriptions describe things!");
 
             IconManager.IconInfo icon = textureManager.icon.GetIconByRecord(id);
-            row["iconId"].Value.SetValue(icon!=null?icon.id:((ushort)0));
+            row["iconId"].Value.SetValue(icon != null ? icon.id : ((ushort)0));
             row["rarity"].Value.SetValue((byte)0);
             row["sellValue"].Value.SetValue((int)Math.Max(1, value * Const.MERCANTILE_SELL_SCALE));
             if (speff != null) { row["residentSpEffectId"].Value.SetValue(speff.row); }
@@ -582,7 +584,7 @@ namespace JortPob
             bool hasScriptReference = json["has_script_reference"] != null ? json["has_script_reference"].GetValue<bool>() : false;
             int value = json["data"]["value"].GetValue<int>();
             int rowToCopy;
-            switch(armorType)
+            switch (armorType)
             {
                 case "helmet":
                     rowToCopy = 1100000; // chain coif
@@ -858,22 +860,22 @@ namespace JortPob
         public List<ItemInfo> GetItems(List<string> ids)
         {
             List<ItemInfo> itemInfos = new();
-            foreach(string id in ids) { itemInfos.Add(GetItem(id)); }
+            foreach (string id in ids) { itemInfos.Add(GetItem(id)); }
             return itemInfos;
         }
 
         public ItemInfo GetItem(string id, float difficulty = 0f)   // optional difficulty value is for world difficulty scaling. value from 0 to 1 determines if leveldlists resolve as a level 0 or level 55 player
         {
             /* First search for a regular item */
-            foreach(ItemInfo item in items)
+            foreach (ItemInfo item in items)
             {
-                if(item.id.ToLower() == id.ToLower()) { return item; }
+                if (item.id.ToLower() == id.ToLower()) { return item; }
             }
 
             /* If no result, search for a leveled list, if we find one resolve it for an item */
-            foreach(LeveledList list in lists)
+            foreach (LeveledList list in lists)
             {
-                if(list.id.ToLower() == id.ToLower()) { return list.Get(difficulty); }
+                if (list.id.ToLower() == id.ToLower()) { return list.Get(difficulty); }
             }
 
             /* No match! */
@@ -881,104 +883,138 @@ namespace JortPob
         }
 
         /* Resolves a content objects inventory (record id and quanity) to actual ItemInfo objects */
-        /* Also truncates inventory to 10 slots which is the max size for an ItemLot param chain! */
-        public List<(ItemInfo item, int quantity)> ResolveInventory(Content content)
+        /* Also resolves flex inventory as well, it does not register the flags though, that happens elsewhere */
+        /* Also truncates inventory and flex to 10 slots each which is the max size for an ItemLot param chain! */
+        public void ResolveInventory(Content content)
         {
             List<(string id, int quantity)> inv;
+            List<(string id, int quantity, bool intial)> flx;
+            InventoryInfo inventory = new();
+
             switch (content)
             {
-                case CharacterContent npc: inv = npc.inventory; break;
-                case ContainerContent cnt: inv = cnt.inventory; break;
+                case CharacterContent npc: inv = npc.inventory; flx = npc.flex; npc.inventoryInfo = inventory; break;
+                case ContainerContent cnt: inv = cnt.inventory; flx = cnt.flex; cnt.inventoryInfo = inventory; break;
                 default: throw new Exception($"Content type of '{content.type}' cannot have an inventory to resolve!");
             }
 
             const int MAX_INV = 10;
 
-            if (inv == null || inv.Count() <= 0) { return new(); }
-
-            List<(ItemInfo item, int quantity)> inventory = new();
-
             // A regular contains/map check won't cut it here. Need to check values. Multiple ItemInfo objects can point at the same param row */
-            void AddOrIncrement(List<(ItemInfo item, int quantity)> list, ItemInfo itemInfo)
+            void AddOrIncrement(List<InventoryEntry> list, ItemInfo itemInfo)
             {
                 if (itemInfo == null) { return; } // skip blank entries
-                for(int i=0;i<list.Count();i++)
+                for (int i = 0; i < list.Count(); i++)
                 {
-                    (ItemInfo item, int quantity) entry = list[i];
+                    InventoryEntry entry = list[i];
                     if (entry.item.type == itemInfo.type && entry.item.row == itemInfo.row)
                     {
-                        list.RemoveAt(i);
-                        list.Add((entry.item, entry.quantity + 1));  // can't increment value in a tuple because fuck
+                        entry.quantity += 1;
                         return;
                     }
                 }
-                list.Add((itemInfo, 1));
+                list.Add(new(itemInfo, 1));
             }
 
+            /* Standard inventory resolve */
             foreach ((string id, int quantity) entry in inv)
             {
                 for (int i = 0; i < entry.quantity; i++)
                 {
                     ItemInfo itemInfo = GetItem(entry.id, Override.GetDifficultyScalar(content.cell)); // getitem resolves leveled lists so a single record id CAN return multiple different items!
-                    AddOrIncrement(inventory, itemInfo);
+                    AddOrIncrement(inventory.standard, itemInfo);
                 }
             }
 
-            /* Convert gold_001 to rune items, @TODO: create custom sized ones flavored as "coin pouch" later */
-            for (int i = 0; i < inventory.Count(); i++)
+            /* Resolve flex inventory, less complex than standard as it's not possible for dupes AFAIK and additem/removeitem doesn't really deal with leveledlists ever */
+            foreach ((string id, int quantity, bool initial) entry in flx)
             {
-                (ItemInfo item, int quantity) entry = inventory[i];
+                ItemInfo itemInfo = GetItem(entry.id, Override.GetDifficultyScalar(content.cell));
+                inventory.flex.Add(new(itemInfo, entry.quantity, entry.initial));
+            }
+
+
+            /* Convert gold_001 to rune items, @TODO: create custom sized ones flavored as "coin pouch" later */
+            for (int i = 0; i < inventory.standard.Count(); i++)
+            {
+                InventoryEntry entry = inventory.standard[i];
                 if (entry.item.id.ToLower() == "gold_001") {
-                    inventory.RemoveAt(i--);
+                    inventory.standard.RemoveAt(i--);
                     ItemInfo rune = new ItemInfo("TEMP_HACK_TODO_GOLDEN_RUNE_ONE", Type.Goods, 2900, 200, false, ItemInfo.OriginalType.MiscItem);
-                    inventory.Add((rune, 1)); // @TODO: temporary. see above
+                    inventory.standard.Add(new(rune, 1)); // @TODO: temporary. see above
+                    break;
+                }
+            }
+
+            /* Same as above but on flex */
+            for (int i = 0; i < inventory.flex.Count(); i++)
+            {
+                var entry = inventory.flex[i];
+                if (entry.item.id.ToLower() == "gold_001")
+                {
+                    inventory.flex.RemoveAt(i--);
+                    ItemInfo rune = new ItemInfo("TEMP_HACK_TODO_GOLDEN_RUNE_ONE", Type.Goods, 2900, 200, false, ItemInfo.OriginalType.MiscItem);
+                    inventory.flex.Add(new(rune, 1, entry.initial));
                     break;
                 }
             }
 
             /* If the content is an NPC we resolve their equipment BEFORE truncating their inventory. This prevents npcs with big inventories from losing their clothes */
-            if (content is NpcContent) { ResolveEquipment(content as NpcContent, inventory); }
+            if (content is NpcContent npcContent)
+            {
+                /* Combine the flex and base inventory for any flex item that is initial, that way initial flex items are still included in gearing choices */
+                List<InventoryEntry> fullInv = new();
+                fullInv.AddRange(inventory.standard);
+                fullInv.AddRange(inventory.flex.Where(e => e.initial).ToList());
+                ResolveEquipment(npcContent, fullInv);
+            }
 
             /* Truncate inventory if it exceeds max size */
             /* We prioritize quest items (script referenced item records) first, then randomly choose from remaining pool what gets included */
-            if (inventory.Count() > MAX_INV)
+            if (inventory.standard.Count() > MAX_INV)
             {
-                List<(ItemInfo item, int quantity)> truncated = new();
+                List<InventoryEntry> truncated = new();
 
-                for(int i=0;i<inventory.Count();i++)
+                for (int i = 0; i < inventory.standard.Count(); i++)
                 {
-                    (ItemInfo item, int quantity) entry = inventory[i];
-                    if (entry.item.quest) { truncated.Add(entry); inventory.RemoveAt(i--); }
+                    InventoryEntry entry = inventory.standard[i];
+                    if (entry.item.quest) { truncated.Add(entry); inventory.standard.RemoveAt(i--); }
                 }
 
-                while(truncated.Count() < MAX_INV && inventory.Count() > 0)
+                while (truncated.Count() < MAX_INV && inventory.standard.Count() > 0)
                 {
-                    int roll = Utility.RandomRange(0, inventory.Count());
-                    (ItemInfo item, int quantity) entry = inventory[roll];
-                    inventory.RemoveAt(roll);
+                    int roll = Utility.RandomRange(0, inventory.standard.Count());
+                    InventoryEntry entry = inventory.standard[roll];
+                    inventory.standard.RemoveAt(roll);
                     truncated.Add(entry);
                 }
 
-                if(truncated.Count > 10)
+                if (truncated.Count > 10)
                 {
                     Lort.Log($"Inventory excceded max possible size [{truncated.Count}/10]! Truncating!", Lort.Type.Debug);
                     truncated = truncated.GetRange(0, 10);
                 }
 
-                inventory = truncated;
+                inventory.standard.Clear();
+                inventory.standard.AddRange(truncated);
             }
 
-            return inventory;
+            /* Truncate flex, this is probably unreachable outside of mods since the largest number of flex items in one objects inv i've seen is like 6 */
+            if (inventory.flex.Count() > MAX_INV)
+            {
+                Lort.Log($"Flex inventory exceeded max possible size [{inventory.flex.Count()}/10]! Truncating!", Lort.Type.Debug);
+                inventory.flex = inventory.flex.GetRange(0, 10);
+            }
         }
 
         /* Resolve equipment slots for NpcContent */
-        public void ResolveEquipment(NpcContent npc, List<(ItemInfo item, int quantity)> inventory)
+        public void ResolveEquipment(NpcContent npc, List<InventoryEntry> inventory)
         {
             List<ItemManager.ItemInfo> oneHand = new(), acc = new(), goods = new();
             ItemManager.ItemInfo twoHand = null, ranged = null, arrow = null, bolt = null, shield = null;
             ItemManager.ItemInfo head = null, body = null, hands = null, legs = null;
 
-            foreach ((ItemInfo item, int quantity) entry in inventory)
+            foreach (InventoryEntry entry in inventory)
             {
                 switch (entry.item.info)
                 {
@@ -1093,7 +1129,7 @@ namespace JortPob
                 if (entry.id.ToLower() == "gold_001") { return; } // blacklist gold from shops (lol)
                 foreach (ItemInfo ii in list)
                 {
-                    if(ii.type == entry.type && ii.row == entry.row)
+                    if (ii.type == entry.type && ii.row == entry.row)
                     {
                         return;
                     }
@@ -1101,9 +1137,9 @@ namespace JortPob
                 list.Add(entry);
             }
 
-            foreach((string id, int quantity) invItem in inventory)
+            foreach ((string id, int quantity) invItem in inventory)
             {
-                for(int i=0;i<invItem.quantity;i++)
+                for (int i = 0; i < invItem.quantity; i++)
                 {
                     ItemInfo itemInfo = GetItem(invItem.id);  // getitem resolves leveled lists so a single record id CAN return multiple different items!
                     AddExclusive(itemsToSell, itemInfo);
@@ -1116,13 +1152,13 @@ namespace JortPob
             {
                 Lort.Log($"ShopParam excceded max possible size [{itemsToSell.Count}/99]! Truncating!", Lort.Type.Debug);
                 itemsToSell = itemsToSell.GetRange(0, 99); // @TODO: Better truncation method please! Discard less useful items instead of chopping!
-            } 
+            }
 
             /* Create shop */
             int baseRow = nextShopId;
             FsParam shopParam = paramanager.param[Paramanager.ParamType.ShopLineupParam];
             int j = 0;
-            foreach(ItemInfo item in itemsToSell)
+            foreach (ItemInfo item in itemsToSell)
             {
                 FsParam.Row row = paramanager.CloneRow(shopParam[1], $"Shop::{item.type}::{item.id}", baseRow + j); // 1 is something default-ish idk. we just filling this out fully
 
@@ -1146,10 +1182,10 @@ namespace JortPob
 
             /* Resolve spell ids to actual spellinfo objects */
             List<SpellManager.SpellInfo> spellsToSell = new();
-            foreach(string spell in spells)
+            foreach (string spell in spells)
             {
                 SpellManager.SpellInfo spellInfo = spellManager.GetSpell(spell);
-                if(spellInfo != null) { spellsToSell.Add(spellInfo); }
+                if (spellInfo != null) { spellsToSell.Add(spellInfo); }
             }
 
             if (spellsToSell.Count <= 0) { return -1; } // empty shop, discard!
@@ -1187,7 +1223,7 @@ namespace JortPob
             /* Randomly select skills to provide based on tier */
             List<Override.SkillInfo> skillPool = Override.GetSkills(tier); // this method creates a new list so we can modify it without issue
             int numItems;
-            switch(tier)
+            switch (tier)
             {
                 case CharacterContent.Stats.Tier.Novice: numItems = Utility.RandomRange(1, 2); break;
                 case CharacterContent.Stats.Tier.Apprentice: numItems = Utility.RandomRange(3, 4); break;
@@ -1197,7 +1233,7 @@ namespace JortPob
                 default: throw new Exception($"Invalid skill tier: {tier}"); // can't happen
             }
 
-            while(skillPool.Count() > numItems)
+            while (skillPool.Count() > numItems)
             {
                 int roll = Utility.RandomRange(0, skillPool.Count());
                 skillPool.RemoveAt(roll);
@@ -1265,6 +1301,64 @@ namespace JortPob
             public List<ItemInfo> Possibilites()
             {
                 return list.Select(tuple => tuple.item).ToList();
+            }
+        }
+
+        /* Classes for resolved inventory, these used to be tuples/records but i need them to be mutable now so classes lol lmao */
+        public class InventoryEntry
+        {
+            public readonly ItemInfo item;
+            public int quantity;
+            public InventoryEntry(ItemInfo item, int quantity)
+            {
+                this.item = item; this.quantity = quantity;
+            }
+        }
+
+        public class FlexEntry : InventoryEntry
+        {
+            public bool initial;
+            public Script.Flag flag;
+            public FlexEntry(ItemInfo item, int quantity, bool initial) : base(item, quantity)
+            {
+                this.initial = initial;
+            }
+        }
+
+        public class InventoryInfo
+        {
+            public List<InventoryEntry> standard; // standard inventory items
+            public List<FlexEntry> flex; // flex inventory items
+
+            public InventoryInfo()
+            {
+                standard = new();
+                flex = new();
+            }
+
+            public Script.Flag GetFlexFlag(string id)
+            {
+                foreach(FlexEntry entry in flex)
+                {
+                    if (id.ToLower().Trim() == "gold_001" && entry.item.id == "TEMP_HACK_TODO_GOLDEN_RUNE_ONE") { return entry.flag; } // @TODO: fix this in a PR after the current one. jesus christ. so much jank
+                    if (entry.item.id.ToLower().Trim() == id.ToLower().Trim()) { return entry.flag; }
+                }
+                return null;
+            }
+
+            public int Count()
+            {
+                return standard.Count() + flex.Count();
+            }
+
+            public bool Empty()
+            {
+                return standard.Empty() && flex.Empty();
+            }
+
+            public bool Any()
+            {
+                return !Empty();
             }
         }
 

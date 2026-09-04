@@ -3,6 +3,7 @@ using SoulsFormats;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 /* Individual script for an msb. */
 /* managed by ScriptManager 
@@ -261,6 +262,47 @@ namespace JortPob.Scripts
             init.Instructions.Add(AUTO.ParseAdd($"InitializeEvent(0, {thieveryEventFlag.id}, 0);"));
         }
 
+        /* Creates events for handling the use of GoToJail and Divine Intervention and stuff like that */
+        public void RegisterInterventionEvent(IMSBCompilableGroup group)
+        {
+            /* Setup */
+            EMEVD.Event jailEvent = new();
+            Flag jailEventFlag = CreateFlag(Flag.Category.Event, Flag.Type.Bit, Flag.Designation.Event, $"JailEvent::{map:D2}_{x:D2}_{y:D2}_{block:D2}");
+            jailEvent.ID = jailEventFlag.id;
+            Script.Flag jailPenaltyFlag = manager.GetFlag(Flag.Designation.Hardcode, "JailPenalty");
+
+            /* Codey */
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"IfCharacterHasSpEffect(AND_01, 10000, {(int)SpeffManager.Functional.GoToJail}, true, 0, 1);")); // wait until player gets GoToJail speff
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"IfPlayerInoutMap(AND_01, true, {map}, {x}, {y}, {block});")); // AND player is in this specific map
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"IfConditionGroup(MAIN, PASS, AND_01);"));
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"SetEventFlag(TargetEventFlagType.EventFlag, {jailPenaltyFlag.id}, ON);"));  // turn on jail penatly flag so that when we load back in after warping to jail the common script will run that penalizes us for being bad boys
+
+            /* Interiors then need to check which chunk the player is in then do the warp of that given chunk */
+            if (group is InteriorGroup)
+            {
+                foreach (InteriorGroup.Chunk chunk in group.Chunks)
+                {
+                    Layout.InterventionPoint jail = chunk.GetIntervention(Layout.InterventionPoint.Type.Jail);
+                    if (jail == null) { Lort.Log($"Failed to register 'jail' intervention event in 'm{map:D2}_{x:D2}_{y:D2}_{block:D2}' due to missing marker.", Lort.Type.Debug); break; } // partial builds may trigger this
+                    jailEvent.Instructions.Add(AUTO.ParseAdd($"SkipIfInoutsideArea(1, InsideOutsideState.Outside, 10000, {manager.areas[chunk.cell]}, 1);")); // entity ids for regions that cover the area of a interior chunk are generated early in the build and are stored in this slightly odd way
+                    jailEvent.Instructions.Add(AUTO.ParseAdd($"WarpPlayer({jail.map}, {jail.coordinate.x}, {jail.coordinate.y}, {jail.block}, {jail.entity}, -1);"));
+                }
+            }
+            /* Exteriors can just send it */
+            else
+            {
+                Layout.InterventionPoint jail = ((Tile)group).GetIntervention(Layout.InterventionPoint.Type.Jail);
+                if (jail == null) { Lort.Log($"Failed to register 'jail' intervention event in 'm{map:D2}_{x:D2}_{y:D2}_{block:D2}' due to missing marker.", Lort.Type.Debug); } // partial builds may trigger this
+                else { jailEvent.Instructions.Add(AUTO.ParseAdd($"WarpPlayer({jail.map}, {jail.coordinate.x}, {jail.coordinate.y}, {jail.block}, {jail.entity}, -1);")); }
+            }
+
+            // No restart is needed since we are warping the player through a load screen
+
+            /* Register */
+            emevd.Events.Add(jailEvent);
+            init.Instructions.Add(AUTO.ParseAdd($"InitializeEvent(0, {jailEventFlag.id}, 0);"));
+        }
+
         private CharacterContent GetAreaNpcById(string id)
         {
             foreach(CharacterContent npc in npcs)
@@ -397,7 +439,7 @@ namespace JortPob.Scripts
             public enum Designation
             {
                 Event,                                          // Flag is an event ID
-                Item,                                           // ItemLot awarded flag
+                Item, FlexItem,                                 // ItemLot awarded flag, and flex item toggle. See 'flex inventories' for more info
                 ItemVisibility,                                 // Flag that determines if an item in a shop is visible for the player to buy
                 Global, Local, Reputation, Journal, CrimeLevel,          // CrimeLevel is gold owed to guards, the Crime below is a per npc variable for if you comitted a crime against them
                 Dead, DeadCount, Disabled, Hostile, CrimeEvent, FriendHitCounter, Pickpocketed, ThiefCrime,      // hostile flag exists for friendly npcs, if you piss em off they stab you

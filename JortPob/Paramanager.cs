@@ -10,9 +10,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Mime;
 using System.Numerics;
 using System.Windows.Forms;
 using WitchyFormats;
+using static JortPob.ItemManager;
 
 namespace JortPob
 {
@@ -920,9 +922,8 @@ namespace JortPob
             FsParam.Row row = CloneRow(npcParam[rowToCopy], $"{npc.id} | diff+{level}", id);
 
             int itemLotRow;
-            List<(ItemManager.ItemInfo item, int quantity)> inventory = itemManager.ResolveInventory(npc);
-            if (!npc.dead && inventory.Count() > 0) {
-                itemLotRow = GenerateInventoryItemLot(script, npc, inventory);
+            if (!npc.dead && npc.inventoryInfo.Count() > 0) {
+                itemLotRow = GenerateInventoryItemLot(script, npc);
             }
             else { itemLotRow = -1; }
 
@@ -966,8 +967,7 @@ namespace JortPob
             FsParam.Row row = CloneRow(npcParam[rowToCopy], $"{creature.id} | diff+{level}", id);
 
             int itemLotRow;
-            List<(ItemManager.ItemInfo item, int quantity)> inventory = itemManager.ResolveInventory(creature);
-            if (inventory.Count() > 0) { itemLotRow = GenerateInventoryItemLot(script, creature, inventory); }    // @TODO: rework item lot generation for creatures to be non-fixed
+            if (creature.inventoryInfo.Count() > 0) { itemLotRow = GenerateInventoryItemLot(script, creature); }    // @TODO: rework item lot generation for creatures to be non-fixed
             else { itemLotRow = -1; }
 
             /* Setup basic npc param stuff */
@@ -1530,6 +1530,23 @@ namespace JortPob
             return row.ID;
         }
 
+        /* Generates an itemlot with a single item and no flag */
+        public int GenerateAddItemLot(Override.SpellRemap spellRemap)
+        {
+            FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
+            FsParam.Row row = CloneRow(itemLotParam[0], $"single, repeatable, scripted, spell, {spellRemap.id}", nextMapItemLotId); // 0 is a default template we created in the constructor
+
+            row["getItemFlagId"].Value.SetValue((uint)0);
+            row["lotItemCategory01"].Value.SetValue(1);                // 1 = goods
+            row["lotItemId01"].Value.SetValue(spellRemap.row);
+            row["lotItemNum01"].Value.SetValue((byte)1);
+            row[$"lotItemBasePoint01"].Value.SetValue((ushort)1000);
+
+            AddOrReplaceRow(itemLotParam, row);
+            nextMapItemLotId += 10;
+            return row.ID;
+        }
+
         /* Generates an itemlot with a single item with a flag. For item objects placed in the overworld that you can pick up as treasure. */
         public int GenerateContentItemLot(BaseScript script, ItemContent itemContent, ItemManager.ItemInfo itemInfo)
         {
@@ -1552,17 +1569,17 @@ namespace JortPob
         }
 
         /* Generates a map item lot from the inventory of an npccontent with a flag. This is for dead npcs that are just bodies that you loot NOT LIVING ONES! */
-        public int GenerateDeadBodyItemLot(BaseScript script, NpcContent npc, List<(ItemManager.ItemInfo item, int quantity)> inventory)
+        public int GenerateDeadBodyItemLot(BaseScript script, NpcContent npc)
         {
             FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
-            if (inventory.Count() <= 0) { return -1; } // skip empty inv
-            if (inventory.Count() > 10) { throw new Exception($" Inventory itemlot exceeded max entries!"); }
+            if (npc.inventoryInfo.standard.Count() <= 0) { return -1; } // skip empty inv
+            if (npc.inventoryInfo.standard.Count() > 10) { throw new Exception($" Inventory itemlot exceeded max entries!"); }
 
             int i = 0;
             int baseRow = nextMapItemLotId;
-            foreach ((ItemManager.ItemInfo item, int quantity) entry in inventory)
+            foreach (InventoryEntry entry in npc.inventoryInfo.standard)
             {
-                Script.Flag itemLotFlag = script.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Item, $"DeadBody::{npc.id}:{0}");
+                Script.Flag itemLotFlag = script.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Item, $"DeadBody::{npc.id}:{i}");
                 if (i == 0) { npc.treasure = itemLotFlag; }
                 FsParam.Row row = CloneRow(itemLotParam[0], $"deadbody, not repeatable, {npc.id}:{entry.item.id}:{i}", baseRow+i); // 0 is a default template we created in the constructor
 
@@ -1581,20 +1598,20 @@ namespace JortPob
         }
 
         /* Generates a map item lot from the inventory of a container with a flag. Barrels, chests, boxes, etc... */
-        public int GenerateContainerItemLot(BaseScript script, ContainerContent container, List<(ItemManager.ItemInfo item, int quantity)> inventory)
+        public int GenerateContainerItemLot(BaseScript script, ContainerContent content)
         {
             FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
-            if (inventory.Count() <= 0) { return -1; } // skip empty inv
-            if (inventory.Count() > 10) { throw new Exception($" Inventory itemlot exceeded max entries!"); }
+            if (content.inventoryInfo.standard.Count() <= 0) { return -1; } // skip empty inv
+            if (content.inventoryInfo.standard.Count() > 10) { throw new Exception($"Inventory itemlot exceeded max entries!"); }
 
             int i = 0;
             int baseRow = nextMapItemLotId;
             int totalValue = 0;
-            foreach ((ItemManager.ItemInfo item, int quantity) entry in inventory)
+            foreach (InventoryEntry entry in content.inventoryInfo.standard)
             {
-                Script.Flag itemLotFlag = script.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Item, $"Container::{container.id}:{0}");
-                if(i==0) { container.treasure = itemLotFlag; } 
-                FsParam.Row row = CloneRow(itemLotParam[0], $"container, not repeatable, {container.id}:{i}:{entry.item.id}", baseRow + i); // 0 is a default template we created in the constructor
+                Script.Flag itemLotFlag = script.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Item, $"Container::{content.id}:{i}");
+                if(i==0) { content.treasure = itemLotFlag; } 
+                FsParam.Row row = CloneRow(itemLotParam[0], $"container, not repeatable, {content.id}:{i}:{entry.item.id}", baseRow + i); // 0 is a default template we created in the constructor
 
                 row["getItemFlagId"].Value.SetValue(itemLotFlag.id);
                 row[$"lotItemCategory01"].Value.SetValue(entry.item.ItemLotCategory());
@@ -1607,22 +1624,21 @@ namespace JortPob
                 AddOrReplaceRow(itemLotParam, row);
             }
 
-            script.RegisterContainerAsset(this, container, totalValue);
-
             nextMapItemLotId += 10;
+            script.RegisterContainerAsset(this, content, totalValue);
             return baseRow;
         }
 
-        /* Generates an enemy item lot from the inventory of an npccontent with no flag. This is for LIVING npcs when the player kills them */
-        public int GenerateInventoryItemLot(BaseScript script, Content content, List<(ItemManager.ItemInfo item, int quantity)> inventory)
+        /* Generates an enemy item lot from the inventory of a charactercontent with no flag. This is for LIVING npcs when the player kills them */
+        public int GenerateInventoryItemLot(BaseScript script, CharacterContent content)
         {
             FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_enemy];
-            if (inventory.Count() <= 0) { return -1; } // skip empty inv
-            if (inventory.Count() > 10) { throw new Exception($" Inventory itemlot exceeded max entries!"); }
+            if (content.inventoryInfo.standard.Count() <= 0) { return -1; } // skip empty inv
+            if (content.inventoryInfo.standard.Count() > 10) { throw new Exception($"Inventory itemlot for '{content.id}' exceeded max entries!"); }
 
             int i = 0;
             int baseRow = nextEnemyItemLotId;
-            foreach ((ItemManager.ItemInfo item, int quantity) entry in inventory)
+            foreach (InventoryEntry entry in content.inventoryInfo.standard)
             {
                 FsParam.Row row = CloneRow(itemLotParam[584000500], $"npc inventory, repeatable, {content.id}:{i}:{entry.item.id}", baseRow + i); // 584000500 is a blankish one i found that looked good as a base
                 
@@ -1637,6 +1653,44 @@ namespace JortPob
             }
 
             nextEnemyItemLotId += 10;
+            return baseRow;
+        }
+
+        /* Generates an item lot for a flex inventory that will be awarded via a script on a character death or placed as treasure */
+        public int GenerateFlexItemLot(BaseScript script, Content content)
+        {
+            InventoryInfo inventory;
+            switch (content)
+            {
+                case CharacterContent npc: inventory = npc.inventoryInfo; break;
+                case ContainerContent cnt: inventory = cnt.inventoryInfo; break;
+                default: throw new Exception($"Content type of '{content.type}' cannot have a flex inventory to resolve!");
+            }
+
+            FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
+            if (inventory.flex.Empty()) { throw new Exception($"Content with id '{content.id}' has no flex inventory but this function was called to build itemlots for it!"); }
+            if (inventory.flex.Count() > 10) { throw new Exception($"Flex inventory itemlot exceeded max entries!"); }
+
+            int baseRow = nextMapItemLotId;
+            int totalValue = 0;
+            for (int i=0;i<inventory.flex.Count();i++)
+            {
+                FlexEntry entry = inventory.flex[i];
+                Script.Flag flexItemFlag = script.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.FlexItem, $"Flex::{content.id}:{i}", entry.initial?0u:1u);
+                entry.flag = flexItemFlag;
+                FsParam.Row row = CloneRow(itemLotParam[0], $"flex inventory, {content.id}:{i}:{entry.item.id}", baseRow + i); // 0 is a default template we created in the constructor
+
+                row["getItemFlagId"].Value.SetValue(flexItemFlag.id);
+                row[$"lotItemCategory01"].Value.SetValue(entry.item.ItemLotCategory());
+                row[$"lotItemId01"].Value.SetValue(entry.item.row);
+                row[$"lotItemNum01"].Value.SetValue((byte)entry.quantity);
+                row[$"lotItemBasePoint01"].Value.SetValue((ushort)1000);
+
+                totalValue += entry.item.value;
+                AddOrReplaceRow(itemLotParam, row);
+            }
+
+            nextMapItemLotId += 10;
             return baseRow;
         }
 

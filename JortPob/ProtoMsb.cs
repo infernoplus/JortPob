@@ -1,6 +1,7 @@
-using System.Collections.Generic;
-using System.Numerics;
 using JortPob.Common;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 
 namespace JortPob
 {
@@ -27,6 +28,7 @@ namespace JortPob
         List<Cell> cells { get; }  // Each Chunk in an InteriorGroup will only return 1 cell.
 
         bool IsInterior { get; }
+        Layout.InterventionPoint GetIntervention(Layout.InterventionPoint.Type type);
 
         List<AssetContent> assets { get; }
         List<DoorContent> doors { get; }
@@ -37,10 +39,12 @@ namespace JortPob
         List<ContainerContent> containers { get; }
         List<PickableContent> pickables { get; }
         List<ItemContent> items { get; }
+        List<MarkerContent> markers { get; }
         List<Layout.WarpDestination> warps { get; } // end points for load doors in other cells. also used by travel npcs
         List<Layout.ScriptedPosition> positions { get; } // used by scripts to target locations EX: 'PositionCell'
         List<Layout.TravelPoint> travels { get; } // positions directly referenced in AiPackages
         List<Layout.PathGridPoint> paths { get; }
         List<Layout.MapPoint> points { get; }  // Each Chunk in an InteriorGroup will only return 1 MapPoint.
+        List<Layout.InterventionPoint> interventions { get; } // used for storing locations for GoToJail, almsivi intervention and divine intervention. this is the destination FROM this MSB, not TO this MSB
     }
 }

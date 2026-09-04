@@ -354,6 +354,14 @@ namespace JortPob.Scripts
                 $"EndUnconditionally(EventEndType.Restart);");     // restart!
         }
 
+        public static EMEVD.Event CreateCharacterFlexInventoryEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"EndIfEventFlag(EventEndType.End, ON, TargetEventFlagType.EventFlag, {getNextParamName()});",     // if npc is dead then end event
+                $"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, {getNextParamName()});",                   // then sit and wait until it is turned on...
+                $"AwardItemLot({getNextParamName()});");                                                         // award item lot of flex inventory
+        }
+
         public static EMEVD.Event CreateGetSecondsPassedEvent(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
         {
             return CreateTemplatizedScript(flag, events,

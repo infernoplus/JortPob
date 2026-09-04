@@ -19,6 +19,9 @@ namespace JortPob
             Alarming = 1000000,      // 5 minute speff that is applied when you are caught committing a crime. triggers "Alarmed" filter in dialog
             NpcFollow = 1000001,     // speff used to switch npcs from normal logic to follower logic. lasts 1 second and is re-applied constantly during follower package
             VoidMurder = 1000002,    // speff applied to npcs when they 'StartCombat' so that if they die you are not given a bounty for "murdering" them. Does not persist between loadscreens though
+            GoToJail = 1000003,      // when applied to player, triggers a intervention style warp to nearest jail. see GenerateIntervention() in Script.cs
+            DivineIntervention = 1000004,   // same as above
+            AlmsiviIntervention = 1000005,  // same as above
         }
 
         public enum Type
@@ -144,6 +147,18 @@ namespace JortPob
             FsParam.Row funcSpeffVoidMurder = CreateTemplateSpeff(TemplateType.TemporarySelf, $"Functional :: VoidMurder", (int)Functional.VoidMurder);
             funcSpeffVoidMurder["effectEndurance"].Value.SetValue((float)-1f);
             paramanager.AddOrReplaceRow(speffParam, funcSpeffVoidMurder);
+
+            FsParam.Row funcSpeffJail = CreateTemplateSpeff(TemplateType.TemporarySelf, $"Functional :: GoToJail", (int)Functional.GoToJail);
+            funcSpeffJail["effectEndurance"].Value.SetValue((float)1f);
+            paramanager.AddOrReplaceRow(speffParam, funcSpeffJail);
+
+            FsParam.Row funcSpeffDivine = CreateTemplateSpeff(TemplateType.TemporarySelf, $"Functional :: DivineIntervention", (int)Functional.DivineIntervention);
+            funcSpeffDivine["effectEndurance"].Value.SetValue((float)1f);
+            paramanager.AddOrReplaceRow(speffParam, funcSpeffDivine);
+
+            FsParam.Row funSpeffAlmsivi = CreateTemplateSpeff(TemplateType.TemporarySelf, $"Functional :: AlmsiviIntervention", (int)Functional.AlmsiviIntervention);
+            funSpeffAlmsivi["effectEndurance"].Value.SetValue((float)1f);
+            paramanager.AddOrReplaceRow(speffParam, funSpeffAlmsivi);
         }
 
         // Temp buffs use 1642100 as a base which is the basic Heal incantation effect

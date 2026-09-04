@@ -1,5 +1,6 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
+using Mutagen.Bethesda.Skyrim;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using static JortPob.ItemManager;
 using static JortPob.Scripts.Script;
 
 namespace JortPob
@@ -121,6 +123,22 @@ namespace JortPob
                 }
 
                 unlocks = new();
+            }
+
+            /* Return all calls of a given type inside this dialog info record */
+            public List<Papyrus.Call> GetCalls(Papyrus.Call.Type type)
+            {
+                if(script == null) { return new(); }
+                return script.calls.SelectMany(call => script.calls)
+                    .Where(call => call.type == type)
+                    .ToList();
+            }
+
+            public List<Papyrus.Call> GetCalls()
+            {
+                if (script == null) { return new(); }
+                return script.calls.SelectMany(call => script.calls)
+                    .ToList();
             }
 
             /* Very special function for optimization */
@@ -843,6 +861,58 @@ namespace JortPob
                                 lines.Add($"assert t{esdId:D9}_x{Const.ESD_STATE_HARDCODE_MODFACREP}(facrepflag={fvar.id}, value={call.parameters[0]})");
                                 break;
                             }
+                        case Papyrus.Call.Type.SetFight:
+                            {
+                                Content target;
+                                if (call.target == null) { target = npcContent; }                      // case 1: no target so current object is target
+                                else { target = layout.FindScriptReference(npcContent, call.target); } // case 2: target is a direct reference to an object record
+                                if (target == null) { break; } // during partial builds the reference may not resolve
+                                if (target is CharacterContent cc)
+                                {
+                                    // Some vals
+                                    int fightVal = int.Parse(call.parameters[0]);
+                                    string state = fightVal >= Const.FIGHT_THRESHOLD ? "On" : "Off";
+                                    Script.Flag hostileFlag = scriptManager.GetFlag(Script.Flag.Designation.Hostile, target);
+
+                                    // If we fail to lookup a hostility flag, we register one with a simple hostility event
+                                    if (hostileFlag == null)
+                                    {
+                                        BaseScript areaScript = scriptManager.FindScriptFor(layout, target);
+                                        hostileFlag = areaScript.RegisterNpcHostilitySimple(cc);
+                                    }
+
+                                    // Set characters hostilility based on fight values
+                                    lines.Add($"SetEventFlag({hostileFlag.id}, FlagState.{state})");
+                                }
+                                else { throw new Exception($"SetFight cannot target {target.type}!"); }
+                                break;
+                            }
+                        case Papyrus.Call.Type.ModFight:
+                            {
+                                Content target;
+                                if (call.target == null) { target = npcContent; }                      // case 1: no target so current object is target
+                                else { target = layout.FindScriptReference(npcContent, call.target); } // case 2: target is a direct reference to an object record
+                                if (target == null) { break; } // during partial builds the reference may not resolve
+                                if (target is CharacterContent cc)
+                                {
+                                    // Some vals
+                                    int fightVal = int.Parse(call.parameters[0]);
+                                    string state = cc.fight + fightVal >= Const.FIGHT_THRESHOLD ? "On" : "Off";
+                                    Script.Flag hostileFlag = scriptManager.GetFlag(Script.Flag.Designation.Hostile, target);
+
+                                    // If we fail to lookup a hostility flag, we register one with a simple hostility event
+                                    if (hostileFlag == null)
+                                    {
+                                        BaseScript areaScript = scriptManager.FindScriptFor(layout, target);
+                                        hostileFlag = areaScript.RegisterNpcHostilitySimple(cc);
+                                    }
+
+                                    // Set characters hostilility based on fight values
+                                    lines.Add($"SetEventFlag({hostileFlag.id}, FlagState.{state})");
+                                }
+                                else { throw new Exception($"ModFight cannot target {target.type}!"); }
+                                break;
+                            }
                         case Papyrus.Call.Type.PcRaiseRank:
                             {
                                 string faction;
@@ -899,6 +969,27 @@ namespace JortPob
                                         Script.Flag removeItemFlag = scriptManager.common.GetOrRegisterRemoveItem(itemInfo, int.Parse(call.parameters[1]));
                                         lines.Add($"SetEventFlag({removeItemFlag.id}, FlagState.On)");
                                     }
+                                }
+                                // not the player
+                                else
+                                {
+                                    // find our target content
+                                    Content target;
+                                    if (call.target == null) { target = npcContent; }
+                                    else { target = layout.FindScriptReference(npcContent, call.target); }
+                                    if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                    // grab flag for the flex item we are goobering
+                                    Script.Flag flexFlag;
+                                    if (target is CharacterContent charCont) { flexFlag = charCont.inventoryInfo.GetFlexFlag(call.parameters[0]); }
+                                    else if (target is ContainerContent contCont) { flexFlag = contCont.inventoryInfo.GetFlexFlag(call.parameters[0]); }
+                                    else { throw new Exception($"RemoveItem cannot target '{target.type}'"); }
+
+                                    // discard call if flex lookup fails. anonymous dialog results can't be (sanely) resolved so we discard. there are only a handful in the game
+                                    if (flexFlag == null) { Lort.Log($"Discarding RemoveItem call due to missing flex inventory entry for '{target.id}'->'{call.RAW}'. This is likely due to an anonymous dialog result or flex truncation.", Lort.Type.Debug); break; }
+
+                                    // set value
+                                    lines.Add($"SetEventFlag({flexFlag.id}, FlagState.On)"); // ON since the flag is "item is picked up" so removing is TRUE
                                 }
                                 break;
                             }
@@ -1095,7 +1186,7 @@ namespace JortPob
                             }
                         case Papyrus.Call.Type.AddItem:
                             {
-                                // only supporting items/gold added to player rn. will eventually support other stuff
+                                // player
                                 if (call.target == "player")
                                 {
                                     // Gold specifically handled as souls
@@ -1112,6 +1203,27 @@ namespace JortPob
                                         lines.Add($"AwardItemLot({row})");
                                     }
                                 }
+                                // not the player
+                                else
+                                {
+                                    // find our target content
+                                    Content target;
+                                    if (call.target == null) { target = npcContent; }
+                                    else { target = layout.FindScriptReference(npcContent, call.target); }
+                                    if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                    // grab flag for the flex item we are goobering
+                                    Script.Flag flexFlag;
+                                    if (target is CharacterContent charCont) { flexFlag = charCont.inventoryInfo.GetFlexFlag(call.parameters[0]); }
+                                    else if (target is ContainerContent contCont) { flexFlag = contCont.inventoryInfo.GetFlexFlag(call.parameters[0]); }
+                                    else { throw new Exception($"AddItem cannot target '{target.type}'"); }
+
+                                    // discard call if flex lookup fails. anonymous dialog results can't be (sanely) resolved so we discard. there are only a handful in the game
+                                    if(flexFlag == null) { Lort.Log($"Discarding AddItem call due to missing flex inventory entry for '{target.id}'->'{call.RAW}'. This is likely due to an anonymous dialog result or flex truncation.", Lort.Type.Debug); break; }
+
+                                    // set value
+                                    lines.Add($"SetEventFlag({flexFlag.id}, FlagState.Off)"); // off since the flag is "item is already picked up" so adding it is false
+                                }
                                 break;
                             }
                         case Papyrus.Call.Type.AddSpell:
@@ -1119,10 +1231,15 @@ namespace JortPob
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
                                 if (call.target == "player")
                                 {
+                                    // Add spell that is actually a "spell" that the player can cast. Like fireball or adrenaline rush.
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                     {
-                                        // @TODO: stub. should give the player the item of a spell. we don't really have those all mapped out yet though so guh
+                                        Override.SpellRemap spellRemap = Override.GetSpellRemap(spell.id);
+                                        if (spellRemap == null) { Lort.Log($"No spell remap exists for '{spell.id}'. A script wants one so please add!", Lort.Type.Debug); break; }
+                                        int row = paramanager.GenerateAddItemLot(spellRemap);
+                                        lines.Add($"AwardItemLot({row});");
                                     }
+                                    // Add spell that is actually a passive effect. Like a racial bonus, disease, or permanent buff from a quest
                                     else
                                     {
                                         lines.Add($"SetEventFlag({spell.flag.id}, FlagState.On)");
@@ -1135,10 +1252,15 @@ namespace JortPob
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
                                 if (call.target == "player")
                                 {
+                                    // Remove a spell that is actually a "spell" that the player can cast. Like fireball or adrenaline rush.
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                     {
-                                        // @TODO: stub. this should remove a spell item from a players inventory but we dont have those mapped out yet
+                                        Override.SpellRemap spellRemap = Override.GetSpellRemap(spell.id);
+                                        if (spellRemap == null) { Lort.Log($"No spell remap exists for '{spell.id}'. A script wants one so please add!", Lort.Type.Debug); break; }
+                                        Script.Flag removeItemFlag = scriptManager.common.GetOrRegisterRemoveItem(spellRemap);
+                                        lines.Add($"SetEventFlag({removeItemFlag.id}, FlagState.On)");
                                     }
+                                    // Remove a spell that is actually a passive effect. Like a racial bonus, disease, or permanent buff from a quest
                                     else
                                     {
                                         lines.Add($"SetEventFlag({spell.flag.id}, FlagState.Off)");
@@ -1148,12 +1270,36 @@ namespace JortPob
                             }
                         case Papyrus.Call.Type.Cast:
                             {
+                                // Grab speff for the spell we are casting on something
                                 SpeffManager.SpeffSpell spell = speffManager.GetSpellSpeff(call.parameters[0]);
+
+                                // On player
                                 if (call.parameters[1].ToLower().Trim() == "player")
                                 {
                                     if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
                                     {
                                         lines.Add($"GiveSpEffectToPlayer({spell.row})");
+                                    }
+                                }
+                                // On NPC or Creature
+                                else
+                                {
+                                    // find our target content
+                                    Content targetA;
+                                    if (call.target == null) { targetA = npcContent; }
+                                    else { targetA = layout.FindScriptReference(npcContent, call.target); }
+                                    if (targetA == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                    // find our second target (the object being casted at)
+                                    Content targetB = layout.FindScriptReference(npcContent, call.parameters[1].ToLower().Trim());
+                                    if (targetB == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                                    if (targetB is not CharacterContent) { break; } // only npcs and creatures can be casted at
+
+                                    // Apply speff to targetB
+                                    if (spell.spellType == SpeffManager.SpeffSpell.SpellType.Spell || spell.spellType == SpeffManager.SpeffSpell.SpellType.Power)
+                                    {
+                                        string code = $"GiveSpEffectToEntity({targetB.entity}, {spell.row})";
+                                        lines.Add(code);
                                     }
                                 }
                                 break;
@@ -1372,6 +1518,7 @@ namespace JortPob
                                 Script.Flag crimeLevel = scriptManager.GetFlag(Script.Flag.Designation.CrimeLevel, "CrimeLevel");
                                 lines.Add($"SetEventFlag({aflag.id}, FlagState.On);"); // setting this flag triggers a common event that clears all crime values
                                 lines.Add($"SetEventFlagValue({crimeLevel.id}, {crimeLevel.Bits()}, 0)"); // seting crimelevel to zero here since if this value isnt cleared immidieatly it can cause guards to re-engage you
+                                lines.Add($"GiveSpEffectToPlayer({(int)SpeffManager.Functional.GoToJail})");
                                 break;
                             }
                         case Papyrus.Call.Type.StartCombat:

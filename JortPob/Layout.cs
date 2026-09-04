@@ -1,12 +1,13 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
+using Microsoft.Scripting.Utils;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using Microsoft.Scripting.Utils;
+using static ESDLang.Script.ESDOptions;
 using static JortPob.InteriorGroup;
 
 namespace JortPob
@@ -87,6 +88,8 @@ namespace JortPob
             // able refs is objects targeted by Enable, Disable, and GetDisabled
             var (allCalls, allReferences, toggleableReferences) = esm.GetScriptReferences();
             Lort.TaskIterate(); // Progress bar update
+
+            ResolveFlexInventories(esm);  // resolves flex inventories for AddItem and RemoveItem calls. relevant for CharacterContent and ContainerContent
             
             SetFollowerFlags(esm, allCalls);
 
@@ -226,6 +229,9 @@ namespace JortPob
             /* Generate map point placements */
             AddMapPointsOfInterest(esm, scriptManager);
             Lort.TaskIterate(); // Progress bar update
+
+            /* Deal with "markers" and precompute intervention/divine/prison warp points for each MSB */
+            SetupIntervention(esm, scriptManager);
         }
 
         private void PrecomputeNpcWitnesses()
@@ -406,6 +412,137 @@ namespace JortPob
                     }
                 }
             }
+        }
+
+        private void SetupIntervention(ESM esm, ScriptManager scriptManager)
+        {
+            /* Iterate through all markers on all msbs and assign entity IDs. In order to teleport a player to a locatino it needs an entity id to target so ye */
+            void AssignEntity(Script script, List<MarkerContent> markers)
+            {
+                foreach (MarkerContent marker in markers)
+                {
+                    marker.entity = script.CreateEntity(Script.EntityType.Enemy, $"{marker.id}->{marker.relative}");
+                }
+            }
+            foreach(Tile tile in tiles) {
+                Script script = (Script)scriptManager.GetScript(tile);
+                AssignEntity(script, tile.markers);
+            }
+            foreach (InteriorGroup group in interiors)
+            {
+                Script script = (Script)scriptManager.GetScript(group);
+                foreach (InteriorGroup.Chunk chunk in group.chunks) {
+                    AssignEntity(script, chunk.markers);
+                }
+            }
+            
+            /* Resolve interventions from those markers */
+            /* For exteriors we simply do a nearest distance calc */
+            foreach(Tile tile in tiles)
+            {
+                /* Quick skipper */
+                if (tile.IsEmpty) { continue; }
+
+                /* Find center of this tile by averaging center of all cells in non-relative coords (by this i mean using morrowind global coords not msb relative ER ones) */
+                int c = 0;
+                Vector3 center = Vector3.Zero;
+                foreach(Cell cell in tile.cells)
+                {
+                    center += cell.center;
+                    c++;
+                }
+                center /= c;
+
+                /* Find nearest markers to calcualted center */
+                (Tile tile, MarkerContent marker) nearestJail = (null, null), nearestDivine = (null, null), nearestAlmsivi = (null, null);
+                foreach (Tile other in tiles)
+                {
+                    foreach (MarkerContent marker in other.markers)
+                    {
+                        switch(marker.markerType)
+                        {
+                            case InterventionPoint.Type.Jail:
+                                if (nearestJail.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestJail.marker.position)) { nearestJail = (other, marker); }
+                                break;
+                            case InterventionPoint.Type.Divine:
+                                if (nearestDivine.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestDivine.marker.position)) { nearestDivine = (other, marker); }
+                                break;
+                            case InterventionPoint.Type.Almsivi:
+                                if (nearestAlmsivi.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestAlmsivi.marker.position)) { nearestAlmsivi = (other, marker); }
+                                break;
+                        }
+                    }
+                }
+
+                /* Assign if found */
+                if (nearestJail.marker != null) { tile.interventions.Add(new(nearestJail.marker.markerType, nearestJail.tile.map, nearestJail.tile.coordinate, nearestJail.tile.block, nearestJail.marker.entity)); }
+                if (nearestDivine.marker != null) { tile.interventions.Add(new(nearestDivine.marker.markerType, nearestDivine.tile.map, nearestDivine.tile.coordinate, nearestDivine.tile.block, nearestDivine.marker.entity)); }
+                if (nearestAlmsivi.marker != null) { tile.interventions.Add(new(nearestAlmsivi.marker.markerType, nearestAlmsivi.tile.map, nearestAlmsivi.tile.coordinate, nearestAlmsivi.tile.block, nearestAlmsivi.marker.entity)); }
+            }
+
+            Cell FindExteriorCellLinkedTo(ESM esm, Cell cell)
+            {
+                List<Cell> searched = new();
+                Cell ExteriorLinkSearch(Cell cell)
+                {
+                    searched.Add(cell);
+
+                    foreach (DoorContent door in cell.doors)
+                    {
+                        // real fake doors
+                        if (door.warp == null) { continue; }
+
+                        // found exterior
+                        if (door.warp.cell == null)
+                        {
+                            Cell linked = esm.GetCellByPosition(door.warp.position);
+                            if (linked != null && linked.IsExterior()) { return linked; }
+                        }
+                        // another interior...
+                        else
+                        {
+                            Cell linked = esm.GetCellByName(door.warp.cell);
+                            if (!searched.Contains(linked))
+                            {
+                                Cell result = ExteriorLinkSearch(linked);
+                                if (result != null && result.IsExterior()) { return result; }
+                            }
+                        }
+                    }
+
+                    return null;
+                }
+
+                Cell linkedExterior = ExteriorLinkSearch(cell);
+                return linkedExterior;
+            }
+
+            /* Resolve interventions from those markers */
+            /* For inteiors we do a simple recursive search to find an exterior link then we just copy paste the interventions of the exterior tile since it should be identical */
+            foreach (InteriorGroup group in interiors)
+            {
+                foreach(InteriorGroup.Chunk chunk in group.chunks)
+                {
+                    /* Find ext link tile */
+                    Cell extLinkCell = FindExteriorCellLinkedTo(esm, chunk.cell);
+                    Tile extLinkTile = null;
+                    foreach (Tile tile in tiles)
+                    {
+                        if (tile.cells.Contains(extLinkCell)) { extLinkTile = tile; break; }
+                    }
+
+                    /* Copy paste ext link tiles interventions */
+                    if(extLinkTile != null)
+                    {
+                        chunk.interventions.AddRange(extLinkTile.interventions);
+                    }
+                    else
+                    {
+                        Lort.Log($"Failed to find linked exterior for chunk: '{chunk.cell.name}'", Lort.Type.Debug);
+                    }
+                }
+            }
+
         }
 
         private void PrepareScriptedPositions(Cache cache, ESM esm, Paramanager param, ScriptManager scriptManager)
@@ -860,6 +997,169 @@ namespace JortPob
                     }
                 }
                 else { Lort.Log($" ## WARNING ## Cell fell outside of reality [{cell.coordinate.x}, {cell.coordinate.y}] -- {cell.name} :: B02", Lort.Type.Debug); }
+            }
+        }
+
+        private static void ResolveFlexInventories(ESM esm)
+        {
+            /* Iterate through all scripts/dialog and find every call that involves AddItem or RemoveItem */
+            List<(string script, string speaker, Papyrus.Call call)> allCalls = new();
+            void AddRange(string script, string speaker, List<Papyrus.Call> calls)
+            {
+                foreach(Papyrus.Call call in calls) { allCalls.Add((script, speaker, call)); }
+            }
+            foreach(Papyrus papyrus in esm.scripts)
+            {
+                AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.AddItem));
+                AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.RemoveItem));
+
+                List<Papyrus.Call> subs = papyrus.GetCalls(Papyrus.Call.Type.StartScript);
+                foreach (Papyrus.Call sub in subs)
+                {
+                    Papyrus subscript = esm.GetPapyrus(sub.parameters[0]);
+                    if (subscript == null) { continue; } // may happen due to some scripts failing to parse or bethesda mistakes
+                    AddRange(papyrus.id, null, subscript.GetCalls(Papyrus.Call.Type.AddItem));    // cheating here by essentially tacking subscript calls started by StatScript onto the "actual" script that called it
+                    AddRange(papyrus.id, null, subscript.GetCalls(Papyrus.Call.Type.RemoveItem));
+                }
+            }
+            foreach(Dialog.DialogRecord dialog in esm.dialog)
+            {
+                foreach (Dialog.DialogInfoRecord info in dialog.infos)
+                {
+                    string speaker = info.speaker?.ToLower().Trim() ?? null;
+                    AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.AddItem));
+                    AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.RemoveItem));
+
+                    List<Papyrus.Call> subs = info.GetCalls(Papyrus.Call.Type.StartScript);
+                    foreach (Papyrus.Call sub in subs)
+                    {
+                        Papyrus subscript = esm.GetPapyrus(sub.parameters[0]);
+                        if (subscript == null) { continue; } // may happen due to some scripts failing to parse or bethesda mistakes
+                        AddRange(null, speaker, subscript.GetCalls(Papyrus.Call.Type.AddItem)); // same cheat as above but instead tieing subscript calls to the dialog result script calls
+                        AddRange(null, speaker, subscript.GetCalls(Papyrus.Call.Type.RemoveItem));
+                    }
+                }
+            }
+
+            /* Deduplicate calls with identical target and item id, and remove all player calls */
+            for(int i=0;i<allCalls.Count;i++)
+            {
+                var entry = allCalls[i];
+                if (entry.call.target != null && entry.call.target.ToLower().Trim() == "player") { allCalls.RemoveAt(i--); continue; } // kill player refs
+                if (entry.call.target == null && entry.script == null && entry.speaker == null)
+                {
+                    Lort.Log($"Discarding fully anonymous call '{entry.call.RAW}' during flex inventory resolution.", Lort.Type.Debug);
+                    allCalls.RemoveAt(i--); continue; // kill fully anonymous calls
+                } 
+
+                for (int j=i+1;j<allCalls.Count;j++)
+                {
+                    var other = allCalls[j];
+                    // Dedupe targeted papyrus script call
+                    if(other.script != null && entry.call.target != null)
+                    {
+                        if (entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                    // Dedupe anonyous papyrus script call
+                    else if(other.script != null && entry.call.target == null)
+                    {
+                        if (entry.script == other.script && entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                    // Dedupe dialog result call
+                    else
+                    {
+                        if (entry.speaker == other.speaker && entry.call.target == other.call.target && entry.call.parameters[0].ToLower().Trim() == other.call.parameters[0].ToLower().Trim()) { allCalls.RemoveAt(j--); }
+                    }
+                }
+            }
+
+            /* Debug print */
+            //string debug = "";
+            //foreach((string source, Papyrus.Call call) entry in allCalls) { debug += $"{entry.source.PadRight(24)} ::: \t\t\t{entry.call.RAW}\r\n"; }
+
+            /* Iterate through all CharacterContent and ContainterContent and adjust their inventory and flex based on matching calls */
+            string debugy = "";
+            foreach (Cell cell in esm.exterior.Concat(esm.interior))
+            {
+                // Method that actually does the work -- modifies inventory and flex directly
+                void HandleFlex(Content content, List<(string id, int quantity)> inventory, List<(string id, int quantity, bool initial)> flex)
+                {
+                    // add items to flex inventory and removes items from base inventory depending on the type of call and presence of items.
+                    void HandleItemCall(Papyrus.Call call)
+                    {
+                        string item = call.parameters[0].ToLower().Trim();
+                        int quantity = int.Parse(call.parameters[1]);
+
+                        if(content.id == "ienas sarandas") { int x = 69; /*debug hi!*/ }
+
+                        switch (call.type)
+                        {
+                            case Papyrus.Call.Type.AddItem:
+                                if (!flex.Select(e => e.id).Contains(item)) { flex.Add((item, quantity, false)); } // add to flex if not present
+                                break;
+                            case Papyrus.Call.Type.RemoveItem:
+                                bool inBaseInv = inventory.Select(e => e.id).Contains(item);
+                                if (inBaseInv) { inventory.RemoveAll(e => e.id == item); } // remove from base inventory if present
+                                if(!flex.Select(e => e.id).Contains(item)) { flex.Add((item, quantity, inBaseInv)); } // not present in flex yet? just add to flex no worries!
+                                else
+                                {
+                                    var entry = flex.FirstOrDefault(e => e.id == item);
+                                    if(!entry.initial && inBaseInv)
+                                    {
+                                        flex.Remove(entry);
+                                        flex.Add((item, quantity, true)); // if present in flex, and was in base inv, but not marked initial, change that
+                                    }
+                                }
+                                break;
+                        }
+                    }
+
+                    // determine if any calls match this content and handle them
+                    foreach(var entry in allCalls)
+                    {
+                        if(entry.script != null && entry.script.ToLower() == "movesarandas" && content.id == "ienas sarandas") { int x = 69; /*DEBUG DELET*/ }
+
+                        /* Targeted call */
+                        if (entry.call.target != null && entry.call.target.ToLower().Trim() == content.id.ToLower().Trim())
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                        /* Anonymous call from a papyrus script */
+                        else if (entry.script != null && content.papyrus != null && entry.script.ToLower().Trim() == content.papyrus.ToLower().Trim() && entry.call.target == null)
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                        /* Anonymous call from a dialog result with matching speaker id */
+                        else if(entry.speaker != null && entry.speaker == content.id.ToLower().Trim() && entry.call.target == null)
+                        {
+                            HandleItemCall(entry.call);
+                        }
+                    }
+
+                    if(flex.Any())
+                    {
+                        string listy = "";
+                        foreach(var entry in flex)
+                        {
+                            listy += $"({entry.id}, {entry.quantity}, {entry.initial})";
+                        }
+                        debugy += $"{(content.id + " -> ").PadRight(32)}[{listy}]\r\n";
+                    }
+                }
+
+                // Call the method lol lmao
+                foreach(Content content in cell.contents)
+                {
+                    switch(content)
+                    {
+                        case CharacterContent character:
+                            HandleFlex(content, character.inventory, character.flex);
+                            break;
+                        case ContainerContent container:
+                            HandleFlex(content, container.inventory, container.flex);
+                            break;
+                    }
+                }
             }
         }
 
@@ -1367,5 +1667,10 @@ namespace JortPob
         }
 
         public record TravelPoint(string name, Vector3 position, Vector3 relative, float radius, uint entity) { }
+
+        public record InterventionPoint(InterventionPoint.Type type, int map, Int2 coordinate, int block, uint entity)
+        {
+            public enum Type { Jail, Divine, Almsivi }
+        }
     }
 }

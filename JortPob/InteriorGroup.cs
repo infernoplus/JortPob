@@ -127,10 +127,11 @@ namespace JortPob
             public List<ContainerContent> containers { get; init; } = [];
             public List<PickableContent> pickables { get; init; } = [];
             public List<ItemContent> items { get; init; } = [];
-
+            public List<MarkerContent> markers { get; init; } = [];
             public List<Layout.WarpDestination> warps { get; init; } = []; // end points for load doors in other cells. also used by travel npcs
             public List<Layout.ScriptedPosition> positions { get; init; } = []; // used by scripts to target locations EX: 'PositionCell'
             public List<Layout.TravelPoint> travels { get; init; } = []; // positions directly referenced in AiPackages
+            public List<Layout.InterventionPoint> interventions { get; init; } = [];
 
             public bool IsInterior { get; } = true;
 
@@ -248,6 +249,8 @@ namespace JortPob
                         npcs.Add(n); break;
                     case CreatureContent c:
                         creatures.Add(c); break;
+                    case MarkerContent m:
+                        markers.Add(m); break;
                     default:
                         Lort.Log($" ## WARNING ## Unhandled Content class '{content.type}::{content.id}' fell through AddContent()", Lort.Type.Debug); break;
                 }
@@ -284,6 +287,12 @@ namespace JortPob
 
                 foreach (NpcContent c in npcs) { HandleCharacterContent(c); }
                 foreach (CreatureContent c in creatures) { HandleCharacterContent(c); }
+            }
+
+            /* Get InterventionPoint of a given type */
+            public Layout.InterventionPoint GetIntervention(Layout.InterventionPoint.Type type)
+            {
+                return interventions.FirstOrDefault(i => i.type == type);  // are you happy now alfy? :)
             }
 
             private string SafeName()

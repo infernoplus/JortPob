@@ -1,12 +1,13 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
 using JortPob.Worker;
+using Mutagen.Bethesda.Skyrim;
+using Noggog;
 using PortJob;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Numerics;
 using static JortPob.Scripts.Script;
 
@@ -22,7 +23,6 @@ namespace JortPob
             Utility.InitSRGBCache();
             Oodler.Initialize();
 
-
             /* Loading stuff */
             ScriptManager scriptManager = new();                                              // Manages EMEVD scripts
             ESM esm = new ESM(scriptManager);                                                // Morrowind ESM parse and partial serialization
@@ -37,7 +37,7 @@ namespace JortPob
             NpcManager character = new(esm, layout, sound, param, text, item, speff, scriptManager);         // Manages dialog esd
 
             /* Some quick setup stuff */
-            scriptManager.SetupSpecialFlags(esm);
+            scriptManager.SetupSpecialFlags(esm, param);
 
             /* Create some needed text data that is ref'd later */
             for (int i = 0; i <= 100; i++) { text.AddTopic($"Disposition: {i}"); }
@@ -339,12 +339,14 @@ namespace JortPob
                             enemy.CollisionPartName = rootCollision.Name;
                         }
 
+                        /* Resolve this npcs inventory */
+                        item.ResolveInventory(npc);
+
                         // If the npc is a deadbody we create a treasure on their body
-                        List<(ItemManager.ItemInfo item, int quantity)> inventory = item.ResolveInventory(npc);
-                        if (npc.dead && inventory.Count > 0)
+                        if (npc.dead && npc.inventoryInfo.Any())
                         {
                             MSBE.Event.Treasure treasure = MakePart.Treasure();
-                            treasure.ItemLotID = param.GenerateDeadBodyItemLot(script, npc, inventory);
+                            treasure.ItemLotID = param.GenerateDeadBodyItemLot(script, npc);
 
                             MSBE.Part.Asset treasurePart = MakePart.TreasureAsset();
                             treasurePart.Position = enemy.Position;
@@ -361,6 +363,12 @@ namespace JortPob
                         enemy.NPCParamID = paramRows.npc;
                         enemy.ThinkParamID = paramRows.think;
                         enemy.CharaInitID = paramRows.init;
+
+                        /* If this npc has a flex inventory register a script for it */
+                        if(npc.inventoryInfo.flex.Any())
+                        {
+                            script.RegisterCharacterFlexInventory(param, npc);
+                        }
 
                         if (!group.IsInterior)
                         {
@@ -398,10 +406,19 @@ namespace JortPob
                             enemy.CollisionPartName = rootCollision.Name;
                         }
 
+                        /* Resolve this creatures inventory */
+                        item.ResolveInventory(creature);
+
                         (int npc, int think, int init) paramRows = character.GetParams(item, script, creature, remap); // creates/gets and returns NpcParam, NpcThinkParam, and CharInitParam
                         enemy.NPCParamID = paramRows.npc;
                         enemy.ThinkParamID = paramRows.think;
                         enemy.CharaInitID = paramRows.init;
+
+                        /* If this creature has a flex inventory register a script for it */
+                        if (creature.inventoryInfo.flex.Any())
+                        {
+                            script.RegisterCharacterFlexInventory(param, creature);
+                        }
 
                         /* Objects with script references added to PleaseCompile list */
                         if (creature.entity > 0)
@@ -501,10 +518,12 @@ namespace JortPob
                     {
                         if (Override.CheckDoNotPlace(content.mesh)) { continue; } // skip any meshes listed in the do_not_place override json
 
+                        /* Resolve inventory for this container */
+                        item.ResolveInventory(content);
+
                         /* Grab ModelInfo + iteminfo */
-                        List<(ItemManager.ItemInfo item, int quantity)> inventory = item.ResolveInventory(content);
                         ModelInfo modelInfo;
-                        if (inventory.Count > 0) { modelInfo = cache.GetModel(content.mesh, Const.DYNAMIC_ASSET); } // if we have a treasure for this assset it MUST be dynamic
+                        if (content.inventoryInfo.Any()) { modelInfo = cache.GetModel(content.mesh, Const.DYNAMIC_ASSET); } // if we have a treasure for this assset it MUST be dynamic
                         else { modelInfo = cache.GetModel(content.mesh, content.scale); }  // otherwise it doesn't matter. treasure events can only work on dynamic assets for whatever reason
 
                         /* Make part */
@@ -522,12 +541,25 @@ namespace JortPob
                         }
 
                         /* Setup container treasure if it exists */
-                        if (inventory.Count > 0)
+                        if (content.inventoryInfo.standard.Any())
                         {
                             MSBE.Event.Treasure treasure = MakePart.Treasure();
                             if (content.entity <= 0) { content.entity = script.CreateEntity(EntityType.Asset, content.id); }  // if this content does not yet have an entity id, give it one
-                            treasure.ItemLotID = param.GenerateContainerItemLot(script, content, inventory);
+                            treasure.ItemLotID = param.GenerateContainerItemLot(script, content);
                             treasure.Name = $"ContainerTreasure->{content.id}";
+                            treasure.ActionButtonID = param.GenerateActionButtonItemParam(content.ActionText());
+                            treasure.TreasurePartName = asset.Name;
+
+                            msb.Events.Treasures.Add(treasure);
+                        }
+
+                        /* Setup flex inventory looting if it exists */
+                        if (content.inventoryInfo.flex.Any())
+                        {
+                            MSBE.Event.Treasure treasure = MakePart.Treasure();
+                            if (content.entity <= 0) { content.entity = script.CreateEntity(EntityType.Asset, content.id); }  // if this content does not yet have an entity id, give it one
+                            treasure.ItemLotID = param.GenerateFlexItemLot(script, content);
+                            treasure.Name = $"FlexContainerTreasure->{content.id}";
                             treasure.ActionButtonID = param.GenerateActionButtonItemParam(content.ActionText());
                             treasure.TreasurePartName = asset.Name;
 
@@ -592,6 +624,19 @@ namespace JortPob
 
                         msb.Regions.PatrolRoutes.Add(region);
                     }
+
+                    /* Add warp points for each MarkerContent */
+                    foreach(MarkerContent marker in chunk.markers)
+                    {
+                        MSBE.Part.Player player = MakePart.Player();
+                        player.Position = marker.relative + Const.MSB_OFFSET;
+                        player.Rotation = marker.rotation;
+                        player.EntityID = marker.entity;
+                        msb.Parts.Players.Add(player);
+                    }
+
+                    /* Register scripts for intervention type teleports out of this MSB */
+                    if (!group.IsEmpty && script is Script s) { s.RegisterInterventionEvent(group); }
 
                     /* Handle area names */
                     if (group is Tile || group.IsInterior)

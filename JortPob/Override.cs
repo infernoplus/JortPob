@@ -1,14 +1,11 @@
 ﻿using JortPob.Common;
 using Microsoft.Scripting.Utils;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
-using static IronPython.Modules._ast;
 
 namespace JortPob
 {
@@ -177,7 +174,7 @@ namespace JortPob
 
         public static int GetDifficultyLevel(Cell cell)
         {
-            return (int)Math.Round(WORLD_DIFFICULTY_SETTINGS.tiers * GetDifficultyScalar(cell));
+            return (int)Math.Round((WORLD_DIFFICULTY_SETTINGS.tiers-1) * GetDifficultyScalar(cell)); // the -1 prevents 100% from being max tier+1
         }
 
         public static WorldDifficultyInfo GetDifficultyInfo() { return WORLD_DIFFICULTY_SETTINGS; }

@@ -209,8 +209,6 @@ namespace JortPob
         }
     }
 
-
-
     public abstract class BaseTile(int m, int x, int y, int b) : IMSBCompilableGroup, IMSBCompilableChunk
     {
         public int map { get; init; } = m;
@@ -229,9 +227,11 @@ namespace JortPob
         public List<ContainerContent> containers { get; init; } = [];
         public List<PickableContent> pickables { get; init; } = [];
         public List<ItemContent> items { get; init; } = [];
+        public List<MarkerContent> markers { get; init; } = [];
         public List<Layout.WarpDestination> warps { get; init; } = [];
         public List<Layout.MapPoint> points { get; init; } = [];
         public List<Layout.ScriptedPosition> positions { get; init; } = [];
+        public List<Layout.InterventionPoint> interventions { get; init; } = [];
 
         public bool IsInterior { get; } = false;
         public Vector3 root
@@ -313,11 +313,19 @@ namespace JortPob
                     npcs.Add(n); break;
                 case CreatureContent c:
                     creatures.Add(c); break;
+                case MarkerContent m:
+                    markers.Add(m); break;
                 default:
                     Lort.Log($" ## WARNING ## Unhandled Content class '{content.type}::{content.id}' fell through AddContent()", Lort.Type.Debug); break;
             }
         }
-        
+
+        /* Get InterventionPoint of a given type */
+        public Layout.InterventionPoint GetIntervention(Layout.InterventionPoint.Type type)
+        {
+            return interventions.FirstOrDefault(i => i.type == type);  // are you happy now alfy? :)
+        }
+
         /**
          * We double the coordinates from our center to approximate the tile shape, then check each of
          * the `tilesToAdd` to see if it is entirely contained within the BigTile (with a little padding),
