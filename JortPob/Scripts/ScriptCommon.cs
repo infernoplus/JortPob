@@ -1,12 +1,13 @@
 ﻿using JortPob.Common;
 using SoulsFormats;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System;
 using System.Linq;
 
 namespace JortPob.Scripts
 {
+    using static ESDLang.Script.ESDOptions;
     using ScriptFlagLookupKey = (Script.Flag.Designation, string); 
 
     /* Handles CommonEvent and CommonFunc EMEVD. These are different from map scripts so I decided to give them a seperate class */
@@ -226,6 +227,18 @@ namespace JortPob.Scripts
             return removeItemFlag;
         }
 
+        /* Create an event for removing a spell item from the player */
+        public Script.Flag GetOrRegisterRemoveItem(Override.SpellRemap spellRemap)
+        {
+            string flagName = $"{ItemManager.Type.Goods}:{spellRemap.row}:{1}";
+            Script.Flag removeItemFlag = manager.GetFlag(Script.Flag.Designation.RemoveItem, flagName);
+            if (removeItemFlag != null) { return removeItemFlag; }
+
+            removeItemFlag = CreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.RemoveItem, flagName);
+            init.Instructions.Insert(0, AUTO.ParseAdd($"InitializeCommonEvent(0, {events[Event.RemoveItem]}, {removeItemFlag.id}, {ItemManager.Type.Goods}, {spellRemap.row}, {1}, {removeItemFlag.id});"));
+            return removeItemFlag;
+        }
+
         /* Handler that maintains a permanent SPEFF on the player. Used for things that persist like Diseases or Abilities */
         public Script.Flag CreatePermanentSpeff(SpeffManager.SpeffSpell spell)
         {
@@ -258,6 +271,56 @@ namespace JortPob.Scripts
             init.Instructions.Insert(0, AUTO.ParseAdd($"InitializeEvent(0, {randomEvent.ID}, 0);"));
 
             return randomFlag;
+        }
+
+        /* Create a simple common event that triggers when a player is sent to jail. Lowers one of their stats, passes some time, and informs them of it */
+        public void CreateJailPenaltyEvent(Paramanager paramanager)
+        {
+            /* Setup */
+            EMEVD.Event jailEvent = new();
+            Script.Flag jailEventFlag = CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"JailPenaltyEvent");
+            jailEvent.ID = jailEventFlag.id;
+
+            /* Flags n stuff */
+            const int STAT_COUNT = 8;
+            Script.Flag jailPenaltyFlag = CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Hardcode, "JailPenalty");
+            Script.Flag daysPassedFlag = manager.GetFlag(Script.Flag.Designation.Global, "DaysPassed");
+            Script.Flag dayFlag = manager.GetFlag(Script.Flag.Designation.Global, "Day");
+            Script.Flag randomFlag = CreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Byte, Script.Flag.Designation.Hardcode, $"JailPenaltyRandom{STAT_COUNT:D2}");
+            List<Script.Flag> setFlags = new()
+            {
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetVigor"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetMind"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetEndurance"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetStrength"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetDexterity"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetIntelligence"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetFaith"),
+                manager.GetFlag(Script.Flag.Designation.Hardcode, "SetArcane")
+            };
+
+            /* Instructionssss */
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"EndIfEventFlag(EventEndType.End, OFF, TargetEventFlagType.EventFlag, {jailPenaltyFlag.id});")); // kill event if the jailpenatly flag is not on at load. jail penalty will only ever happen at game load after a player is warped to prison so we can kill the event otherwise
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"WaitFixedTimeSeconds(1.0);")); // wait a moment after game load
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"EventValueOperation({randomFlag.id}, {randomFlag.Bits()}, 0, 0, 1, 5);")); // wipe random flag
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"RandomlySetEventFlagInRange({randomFlag.id}, {randomFlag.id + randomFlag.Bits()}, ON);")); // assign 1 bit at random on the random flag (min and max are included in roll from what i can tell)
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"SetEventFlag(TargetEventFlagType.EventFlag, {jailPenaltyFlag.id}, OFF);"));  // turn jail penalty flag off now
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"EventValueOperation({dayFlag.id}, {dayFlag.Bits()}, 5, 0, 1, 0);")); // pass 5 days in jail
+            jailEvent.Instructions.Add(AUTO.ParseAdd($"EventValueOperation({daysPassedFlag.id}, {daysPassedFlag.Bits()}, 5, 0, 1, 0);")); // pass 5 days in jail (for the other value)
+
+            for (int i = 0; i < STAT_COUNT; i++)
+            {
+                Script.Flag setFlag = setFlags[i];
+                Script.Flag msgFlag = GetOrRegisterMessage(paramanager, $"", $"You have been released after countless days in jail. You lost a level in {setFlag.name[3..]} during your imprisonment.");
+                jailEvent.Instructions.Add(AUTO.ParseAdd($"SkipIfEventFlag(3, OFF, TargetEventFlagType.EventFlag, {randomFlag.id + i});"));  // skip unless the random landed on this stat
+                jailEvent.Instructions.Add(AUTO.ParseAdd($"EventValueOperation({setFlag.id}, {setFlag.Bits()}, 99, 0, 1, 5);"));  // assign 99 to the setStat field since 100 is "0" 99 will reduce the stat by 1
+                jailEvent.Instructions.Add(AUTO.ParseAdd($"SetEventFlag(TargetEventFlagType.EventFlag, {msgFlag.id}, ON);")); // message
+                jailEvent.Instructions.Add(AUTO.ParseAdd($"EndUnconditionally(EventEndType.End);"));
+            }
+
+            /* Register */
+            emevd.Events.Add(jailEvent);
+            init.Instructions.Insert(0, AUTO.ParseAdd($"InitializeEvent(0, {jailEvent.ID}, 0);"));
         }
 
         /* Create a fixed common event that handles the players ability to use the crafting menu based on what alchemy equipment they have */

@@ -211,6 +211,9 @@ namespace JortPob.Common
 
         #region Gameplay
 
+        /// fight value at which a character becomes hostile
+        public static readonly int FIGHT_THRESHOLD = 81;
+
         public static readonly float MERCANTILE_BUY_SCALE = 1.1f;
         public static readonly float MERCANTILE_SELL_SCALE = 0.45f;
 

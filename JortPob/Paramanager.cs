@@ -1530,6 +1530,23 @@ namespace JortPob
             return row.ID;
         }
 
+        /* Generates an itemlot with a single item and no flag */
+        public int GenerateAddItemLot(Override.SpellRemap spellRemap)
+        {
+            FsParam itemLotParam = param[Paramanager.ParamType.ItemLotParam_map];
+            FsParam.Row row = CloneRow(itemLotParam[0], $"single, repeatable, scripted, spell, {spellRemap.id}", nextMapItemLotId); // 0 is a default template we created in the constructor
+
+            row["getItemFlagId"].Value.SetValue((uint)0);
+            row["lotItemCategory01"].Value.SetValue(1);                // 1 = goods
+            row["lotItemId01"].Value.SetValue(spellRemap.row);
+            row["lotItemNum01"].Value.SetValue((byte)1);
+            row[$"lotItemBasePoint01"].Value.SetValue((ushort)1000);
+
+            AddOrReplaceRow(itemLotParam, row);
+            nextMapItemLotId += 10;
+            return row.ID;
+        }
+
         /* Generates an itemlot with a single item with a flag. For item objects placed in the overworld that you can pick up as treasure. */
         public int GenerateContentItemLot(BaseScript script, ItemContent itemContent, ItemManager.ItemInfo itemInfo)
         {

@@ -929,11 +929,8 @@ namespace JortPob
             /* Resolve flex inventory, less complex than standard as it's not possible for dupes AFAIK and additem/removeitem doesn't really deal with leveledlists ever */
             foreach ((string id, int quantity, bool initial) entry in flx)
             {
-                for (int i = 0; i < entry.quantity; i++)
-                {
-                    ItemInfo itemInfo = GetItem(entry.id, Override.GetDifficultyScalar(content.cell));
-                    inventory.flex.Add(new(itemInfo, entry.quantity, entry.initial));
-                }
+                ItemInfo itemInfo = GetItem(entry.id, Override.GetDifficultyScalar(content.cell));
+                inventory.flex.Add(new(itemInfo, entry.quantity, entry.initial));
             }
 
 
@@ -1343,7 +1340,8 @@ namespace JortPob
             {
                 foreach(FlexEntry entry in flex)
                 {
-                    if(entry.item.id.ToLower().Trim() == id.ToLower().Trim()) { return entry.flag; }
+                    if (id.ToLower().Trim() == "gold_001" && entry.item.id == "TEMP_HACK_TODO_GOLDEN_RUNE_ONE") { return entry.flag; } // @TODO: fix this in a PR after the current one. jesus christ. so much jank
+                    if (entry.item.id.ToLower().Trim() == id.ToLower().Trim()) { return entry.flag; }
                 }
                 return null;
             }

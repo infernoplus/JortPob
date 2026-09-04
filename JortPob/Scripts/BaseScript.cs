@@ -79,6 +79,16 @@ namespace JortPob.Scripts
             return flagsByLookupKey.GetValueOrDefault(key);
         }
 
+        /* Sort of special function. Generally we don't need an event for creature hostility as they are just sorta hostile or not. */
+        /* But there are some edge cases where scripts change a creatures hostility so we have this simple event register that we can set on demand for a creature if needed */
+        /* Used by SetFight and ModFight papyrus calls */
+        public Script.Flag RegisterNpcHostilitySimple(CharacterContent npc)
+        {
+            Script.Flag hostileFlag = GetOrCreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.Hostile, npc, npc.IsHostile() ? 1u : 0u);
+            init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.NpcHostilityHandler]}, {hostileFlag.id}, {npc.entity}, {npc.entity}, {hostileFlag.id}, {npc.entity}, {npc.entity});"));
+            return hostileFlag;
+        }
+
         public void RegisterNpcHostility(CharacterContent npc)
         {
             GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.FriendHitCounter, npc); // setup friendly hit counter

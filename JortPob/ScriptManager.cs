@@ -107,7 +107,7 @@ namespace JortPob
 
         /* Sets up race and faction flags that are used globally and interact with specific papyrus calls */
         /* Also some other globalish vars we need for scripts like Reputation and CrimeLevel */
-        public void SetupSpecialFlags(ESM esm)
+        public void SetupSpecialFlags(ESM esm, Paramanager paramanager)
         {
             /* Create some special common events */ // these have to wait until after ESM is loaded otherwise we'd just do it in the constructor
             common.CreateWeatherTracker();
@@ -184,6 +184,8 @@ namespace JortPob
             Script.Flag setFaithFlag = common.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Byte, Script.Flag.Designation.Hardcode, "SetFaith");
             Script.Flag setArcaneFlag = common.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Byte, Script.Flag.Designation.Hardcode, "SetArcane");
 
+            // Jail penalty code uses the above stat flags so had to wait till they were created before generating
+            common.CreateJailPenaltyEvent(paramanager);
 
             // Temp flag that is set true when a player is sneaking
             Script.Flag playerIsSneakingFlag = common.CreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.PlayerIsSneaking, "PlayerIsSneaking");

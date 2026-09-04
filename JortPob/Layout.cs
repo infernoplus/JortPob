@@ -1,6 +1,4 @@
-﻿using HKLib.hk2018.hk;
-using HKLib.hk2018.hkaiCollisionAvoidance;
-using JortPob.Common;
+﻿using JortPob.Common;
 using JortPob.Scripts;
 using Microsoft.Scripting.Utils;
 using SoulsFormats;
@@ -9,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using static ESDLang.Script.ESDOptions;
 using static JortPob.InteriorGroup;
 
 namespace JortPob
@@ -230,6 +229,9 @@ namespace JortPob
             /* Generate map point placements */
             AddMapPointsOfInterest(esm, scriptManager);
             Lort.TaskIterate(); // Progress bar update
+
+            /* Deal with "markers" and precompute intervention/divine/prison warp points for each MSB */
+            SetupIntervention(esm, scriptManager);
         }
 
         private void PrecomputeNpcWitnesses()
@@ -410,6 +412,137 @@ namespace JortPob
                     }
                 }
             }
+        }
+
+        private void SetupIntervention(ESM esm, ScriptManager scriptManager)
+        {
+            /* Iterate through all markers on all msbs and assign entity IDs. In order to teleport a player to a locatino it needs an entity id to target so ye */
+            void AssignEntity(Script script, List<MarkerContent> markers)
+            {
+                foreach (MarkerContent marker in markers)
+                {
+                    marker.entity = script.CreateEntity(Script.EntityType.Enemy, $"{marker.id}->{marker.relative}");
+                }
+            }
+            foreach(Tile tile in tiles) {
+                Script script = (Script)scriptManager.GetScript(tile);
+                AssignEntity(script, tile.markers);
+            }
+            foreach (InteriorGroup group in interiors)
+            {
+                Script script = (Script)scriptManager.GetScript(group);
+                foreach (InteriorGroup.Chunk chunk in group.chunks) {
+                    AssignEntity(script, chunk.markers);
+                }
+            }
+            
+            /* Resolve interventions from those markers */
+            /* For exteriors we simply do a nearest distance calc */
+            foreach(Tile tile in tiles)
+            {
+                /* Quick skipper */
+                if (tile.IsEmpty) { continue; }
+
+                /* Find center of this tile by averaging center of all cells in non-relative coords (by this i mean using morrowind global coords not msb relative ER ones) */
+                int c = 0;
+                Vector3 center = Vector3.Zero;
+                foreach(Cell cell in tile.cells)
+                {
+                    center += cell.center;
+                    c++;
+                }
+                center /= c;
+
+                /* Find nearest markers to calcualted center */
+                (Tile tile, MarkerContent marker) nearestJail = (null, null), nearestDivine = (null, null), nearestAlmsivi = (null, null);
+                foreach (Tile other in tiles)
+                {
+                    foreach (MarkerContent marker in other.markers)
+                    {
+                        switch(marker.markerType)
+                        {
+                            case InterventionPoint.Type.Jail:
+                                if (nearestJail.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestJail.marker.position)) { nearestJail = (other, marker); }
+                                break;
+                            case InterventionPoint.Type.Divine:
+                                if (nearestDivine.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestDivine.marker.position)) { nearestDivine = (other, marker); }
+                                break;
+                            case InterventionPoint.Type.Almsivi:
+                                if (nearestAlmsivi.marker == null || Vector3.Distance(center, marker.position) < Vector3.Distance(center, nearestAlmsivi.marker.position)) { nearestAlmsivi = (other, marker); }
+                                break;
+                        }
+                    }
+                }
+
+                /* Assign if found */
+                if (nearestJail.marker != null) { tile.interventions.Add(new(nearestJail.marker.markerType, nearestJail.tile.map, nearestJail.tile.coordinate, nearestJail.tile.block, nearestJail.marker.entity)); }
+                if (nearestDivine.marker != null) { tile.interventions.Add(new(nearestDivine.marker.markerType, nearestDivine.tile.map, nearestDivine.tile.coordinate, nearestDivine.tile.block, nearestDivine.marker.entity)); }
+                if (nearestAlmsivi.marker != null) { tile.interventions.Add(new(nearestAlmsivi.marker.markerType, nearestAlmsivi.tile.map, nearestAlmsivi.tile.coordinate, nearestAlmsivi.tile.block, nearestAlmsivi.marker.entity)); }
+            }
+
+            Cell FindExteriorCellLinkedTo(ESM esm, Cell cell)
+            {
+                List<Cell> searched = new();
+                Cell ExteriorLinkSearch(Cell cell)
+                {
+                    searched.Add(cell);
+
+                    foreach (DoorContent door in cell.doors)
+                    {
+                        // real fake doors
+                        if (door.warp == null) { continue; }
+
+                        // found exterior
+                        if (door.warp.cell == null)
+                        {
+                            Cell linked = esm.GetCellByPosition(door.warp.position);
+                            if (linked != null && linked.IsExterior()) { return linked; }
+                        }
+                        // another interior...
+                        else
+                        {
+                            Cell linked = esm.GetCellByName(door.warp.cell);
+                            if (!searched.Contains(linked))
+                            {
+                                Cell result = ExteriorLinkSearch(linked);
+                                if (result != null && result.IsExterior()) { return result; }
+                            }
+                        }
+                    }
+
+                    return null;
+                }
+
+                Cell linkedExterior = ExteriorLinkSearch(cell);
+                return linkedExterior;
+            }
+
+            /* Resolve interventions from those markers */
+            /* For inteiors we do a simple recursive search to find an exterior link then we just copy paste the interventions of the exterior tile since it should be identical */
+            foreach (InteriorGroup group in interiors)
+            {
+                foreach(InteriorGroup.Chunk chunk in group.chunks)
+                {
+                    /* Find ext link tile */
+                    Cell extLinkCell = FindExteriorCellLinkedTo(esm, chunk.cell);
+                    Tile extLinkTile = null;
+                    foreach (Tile tile in tiles)
+                    {
+                        if (tile.cells.Contains(extLinkCell)) { extLinkTile = tile; break; }
+                    }
+
+                    /* Copy paste ext link tiles interventions */
+                    if(extLinkTile != null)
+                    {
+                        chunk.interventions.AddRange(extLinkTile.interventions);
+                    }
+                    else
+                    {
+                        Lort.Log($"Failed to find linked exterior for chunk: '{chunk.cell.name}'", Lort.Type.Debug);
+                    }
+                }
+            }
+
         }
 
         private void PrepareScriptedPositions(Cache cache, ESM esm, Paramanager param, ScriptManager scriptManager)
@@ -879,6 +1012,15 @@ namespace JortPob
             {
                 AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.AddItem));
                 AddRange(papyrus.id, null, papyrus.GetCalls(Papyrus.Call.Type.RemoveItem));
+
+                List<Papyrus.Call> subs = papyrus.GetCalls(Papyrus.Call.Type.StartScript);
+                foreach (Papyrus.Call sub in subs)
+                {
+                    Papyrus subscript = esm.GetPapyrus(sub.parameters[0]);
+                    if (subscript == null) { continue; } // may happen due to some scripts failing to parse or bethesda mistakes
+                    AddRange(papyrus.id, null, subscript.GetCalls(Papyrus.Call.Type.AddItem));    // cheating here by essentially tacking subscript calls started by StatScript onto the "actual" script that called it
+                    AddRange(papyrus.id, null, subscript.GetCalls(Papyrus.Call.Type.RemoveItem));
+                }
             }
             foreach(Dialog.DialogRecord dialog in esm.dialog)
             {
@@ -887,6 +1029,15 @@ namespace JortPob
                     string speaker = info.speaker?.ToLower().Trim() ?? null;
                     AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.AddItem));
                     AddRange(null, speaker, info.GetCalls(Papyrus.Call.Type.RemoveItem));
+
+                    List<Papyrus.Call> subs = info.GetCalls(Papyrus.Call.Type.StartScript);
+                    foreach (Papyrus.Call sub in subs)
+                    {
+                        Papyrus subscript = esm.GetPapyrus(sub.parameters[0]);
+                        if (subscript == null) { continue; } // may happen due to some scripts failing to parse or bethesda mistakes
+                        AddRange(null, speaker, subscript.GetCalls(Papyrus.Call.Type.AddItem)); // same cheat as above but instead tieing subscript calls to the dialog result script calls
+                        AddRange(null, speaker, subscript.GetCalls(Papyrus.Call.Type.RemoveItem));
+                    }
                 }
             }
 
@@ -926,7 +1077,7 @@ namespace JortPob
             //string debug = "";
             //foreach((string source, Papyrus.Call call) entry in allCalls) { debug += $"{entry.source.PadRight(24)} ::: \t\t\t{entry.call.RAW}\r\n"; }
 
-            /* Iterate through all CharacterContent and ContainterContent and adust their inventory and flex based on matching calls */
+            /* Iterate through all CharacterContent and ContainterContent and adjust their inventory and flex based on matching calls */
             string debugy = "";
             foreach (Cell cell in esm.exterior.Concat(esm.interior))
             {
@@ -938,6 +1089,8 @@ namespace JortPob
                     {
                         string item = call.parameters[0].ToLower().Trim();
                         int quantity = int.Parse(call.parameters[1]);
+
+                        if(content.id == "ienas sarandas") { int x = 69; /*debug hi!*/ }
 
                         switch (call.type)
                         {
@@ -964,13 +1117,15 @@ namespace JortPob
                     // determine if any calls match this content and handle them
                     foreach(var entry in allCalls)
                     {
+                        if(entry.script != null && entry.script.ToLower() == "movesarandas" && content.id == "ienas sarandas") { int x = 69; /*DEBUG DELET*/ }
+
                         /* Targeted call */
                         if (entry.call.target != null && entry.call.target.ToLower().Trim() == content.id.ToLower().Trim())
                         {
                             HandleItemCall(entry.call);
                         }
                         /* Anonymous call from a papyrus script */
-                        else if (entry.script != null && content.papyrus != null && entry.script == content.papyrus.ToLower().Trim() && entry.call.target == null)
+                        else if (entry.script != null && content.papyrus != null && entry.script.ToLower().Trim() == content.papyrus.ToLower().Trim() && entry.call.target == null)
                         {
                             HandleItemCall(entry.call);
                         }
@@ -1512,5 +1667,10 @@ namespace JortPob
         }
 
         public record TravelPoint(string name, Vector3 position, Vector3 relative, float radius, uint entity) { }
+
+        public record InterventionPoint(InterventionPoint.Type type, int map, Int2 coordinate, int block, uint entity)
+        {
+            public enum Type { Jail, Divine, Almsivi }
+        }
     }
 }

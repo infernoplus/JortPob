@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using static Mutagen.Bethesda.Skyrim.MapMarker;
 
 namespace JortPob
 {
@@ -35,6 +36,7 @@ namespace JortPob
         public readonly List<ContainerContent> containers;
         public readonly List<PickableContent> pickables;
         public readonly List<ItemContent> items;
+        public readonly List<MarkerContent> markers;
 
         public Cell(ESM esm, JsonNode json)
         {
@@ -92,6 +94,7 @@ namespace JortPob
             containers = new();
             pickables = new();
             items = new();
+            markers = new();
 
             foreach (JsonNode reference in json["references"].AsArray())
             {
@@ -101,6 +104,15 @@ namespace JortPob
                 if(record == null) { continue; }
 
                 string mesh = record.json["mesh"]?.ToString(); // mesh can just be "" sometimes
+
+                bool isMarker = false;
+                switch (id)
+                {
+                    case "PrisonMarker": markers.Add(new MarkerContent(this, reference, record, Layout.InterventionPoint.Type.Jail)); isMarker = true; break;
+                    case "TempleMarker": markers.Add(new MarkerContent(this, reference, record, Layout.InterventionPoint.Type.Almsivi)); isMarker = true; break;
+                    case "DivineMarker": markers.Add(new MarkerContent(this, reference, record, Layout.InterventionPoint.Type.Divine)); isMarker = true; break;
+                }
+                if (isMarker) { continue; }
 
                 switch (record.type)
                 {
@@ -162,6 +174,7 @@ namespace JortPob
             contents.AddRange(containers);
             contents.AddRange(pickables);
             contents.AddRange(items);
+            contents.AddRange(markers);
 
 
             /* Calculate bounding box */

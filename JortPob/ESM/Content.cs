@@ -496,7 +496,7 @@ namespace JortPob
         }
 
         /* Checks innate fight value to determine if npc is naturally hostile to the player or not */
-        public bool IsHostile() { return fight >= 80; } // @TODO: recalc with disposition mods based off UESP calc}
+        public bool IsHostile() { return fight >= Const.FIGHT_THRESHOLD; } // @TODO: recalc with disposition mods based off UESP calc (massive task tbh, save for later if we have time to goober around)
 
         /* Return true if this npc is a generic guard that can arrest the player for crimes */
         public bool IsGuard() { return job == "Guard" || job == "Ordinator Guard"; }
@@ -640,6 +640,18 @@ namespace JortPob
         public EmitterContent ConvertToEmitter()
         {
             return new EmitterContent(cell, id, name, type, load, papyrus, position, rotation, scale, mesh);
+        }
+    }
+
+    /* covers markers like TempleMarker and PrisonMarker. These are statics placed in morrowin to mark locatinos with special purposes. they should not show up ingame as objects */
+    public class MarkerContent : Content
+    {
+        public Layout.InterventionPoint.Type markerType;
+
+        public MarkerContent(Cell cell, JsonNode json, Record record, Layout.InterventionPoint.Type marketType) : base(cell, json, record)
+        {
+            this.markerType = marketType;
+            rotation += new Vector3(0f, 180f, 0f);  // models are rotated during conversion, placements like this are rotated here during serializiation to match
         }
     }
 

@@ -37,7 +37,7 @@ namespace JortPob
             NpcManager character = new(esm, layout, sound, param, text, item, speff, scriptManager);         // Manages dialog esd
 
             /* Some quick setup stuff */
-            scriptManager.SetupSpecialFlags(esm);
+            scriptManager.SetupSpecialFlags(esm, param);
 
             /* Create some needed text data that is ref'd later */
             for (int i = 0; i <= 100; i++) { text.AddTopic($"Disposition: {i}"); }
@@ -624,6 +624,19 @@ namespace JortPob
 
                         msb.Regions.PatrolRoutes.Add(region);
                     }
+
+                    /* Add warp points for each MarkerContent */
+                    foreach(MarkerContent marker in chunk.markers)
+                    {
+                        MSBE.Part.Player player = MakePart.Player();
+                        player.Position = marker.relative + Const.MSB_OFFSET;
+                        player.Rotation = marker.rotation;
+                        player.EntityID = marker.entity;
+                        msb.Parts.Players.Add(player);
+                    }
+
+                    /* Register scripts for intervention type teleports out of this MSB */
+                    if (!group.IsEmpty && script is Script s) { s.RegisterInterventionEvent(group); }
 
                     /* Handle area names */
                     if (group is Tile || group.IsInterior)
