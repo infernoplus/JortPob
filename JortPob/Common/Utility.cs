@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using WitchyFormats;
 using Xbrz;
 
@@ -506,42 +508,64 @@ namespace JortPob.Common
 
         public static void ExecuteProcess(ProcessStartInfo startInfo, int timeOutMillis = 0)
         {
+            // Redirect AND drain both stdout and stderr concurrently. 
+            bool canRedirect = !startInfo.UseShellExecute;
+            if (canRedirect)
+            {
+                startInfo.RedirectStandardOutput = true;
+                startInfo.RedirectStandardError = true;
+            }
+
             using Process process = Process.Start(startInfo);
             if (process == null)
             {
                 throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
             }
 
-            bool exited;
-            if(timeOutMillis == 0) { exited = process.WaitForExit(TimeSpan.FromMilliseconds(Const.DEFAULT_PROCESS_TIMEOUT)); }
-            else if (timeOutMillis < 0) { process.WaitForExit(); exited = true; }
-            else { exited = process.WaitForExit(TimeSpan.FromMilliseconds(timeOutMillis)); }
+            // Start draining immediately, in parallel with the wait, so the pipes never fill.
+            Task<string> stdoutTask = canRedirect ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
+            Task<string> stderrTask = canRedirect ? process.StandardError.ReadToEndAsync() : Task.FromResult("");
+
+            int effectiveTimeout =
+                timeOutMillis == 0 ? Const.DEFAULT_PROCESS_TIMEOUT :
+                timeOutMillis < 0  ? Timeout.Infinite :
+                                     timeOutMillis;
+
+            bool exited = process.WaitForExit(effectiveTimeout);
 
             if (!exited)
             {
                 try
                 {
-                    // Forceful termination if timeout occurs
-                    process.Kill();
-                    process.WaitForExit(); // Wait for OS cleanup
-                    throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
+                    // Forceful termination if timeout occurs.
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000); // bounded wait for OS cleanup
                 }
                 catch (InvalidOperationException)
                 {
                     // Process may have just exited before Kill() was called.
-                    // We'll proceed to check the exit code below.
                 }
+                throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
             }
 
-            // VITAL: Check the process exit code after successful exit or timeout kill
+            // Process has exited, so the drain tasks are at EOF and complete immediately.
+            string stdout = SafeAwait(stdoutTask);
+            string stderr = SafeAwait(stderrTask);
+
+            // VITAL: Check the process exit code after a successful exit.
             if (process.ExitCode != 0)
             {
-                // Optional: Read StandardError for better debugging info
-                string error = startInfo.RedirectStandardError ? process.StandardError.ReadToEnd() : "N/A (Error stream not redirected)";
-
-                // Throw a specific exception indicating execution failure
-                throw new ApplicationException($"Process failed with exit code {process.ExitCode}. Error: {error}");
+                string detail = canRedirect
+                    ? $"Error: {stderr}{(string.IsNullOrWhiteSpace(stdout) ? "" : $"\nOutput: {stdout}")}"
+                    : "N/A (streams not redirected)";
+                throw new ApplicationException($"Process failed with exit code {process.ExitCode}. {detail}");
             }
+        }
+
+        private static string SafeAwait(Task<string> task)
+        {
+            try { return task.GetAwaiter().GetResult(); }
+            catch { return ""; }
         }
     }
 
