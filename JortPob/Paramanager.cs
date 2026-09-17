@@ -271,6 +271,9 @@ namespace JortPob
             /* Generate difficulty scaling speffs */
             GenerateDifficultySpeffs();
 
+            /* Generate scrolls-native movement spells */
+            GenerateNativeSpellParams();
+
             GC.Collect(); // maybe fixes a bug with fsparam. 80% sure
         }
 
@@ -902,6 +905,53 @@ namespace JortPob
                 AddOrReplaceRow(param[ParamType.SpEffectParam], row);
 
                 nextSpeffId += 10;
+            }
+        }
+
+        private static readonly (int spell, int signal, int bullet, int sortId, float duration, string name)[] NEW_SPELLS =
+        {
+            (6990, 6900001, 69900000, 302001, 60f, "Icarian Flight"),
+            (6991, 6900002, 69900010, 302002, 60f, "Slowfall"),
+            (6992, 6900003, 69900020, 302003, 60f, "Levitation"),
+            (6993, 6900004, 69900030, 302004, 60f, "Jump"),
+        };
+
+        public void GenerateNativeSpellParams()
+        {
+            const int speffTemplate = 295000;    // neutral permanent effect, does nothing visible. Donor param
+            const int bulletTemplate = 10660000; // Golden Vow: applies speffects to the caster
+            const int spellTemplate = 6600;      // Golden Vow: self buff, used for Magic and Goods
+
+            foreach ((int spell, int signal, int bullet, int sortId, float duration, string name) in NEW_SPELLS)
+            {
+                FsParam.Row speffRow = CloneRow(GetRow(param[ParamType.SpEffectParam], speffTemplate), $"{name} signal", signal);
+                speffRow["effectEndurance"].Value.SetValue(duration);
+                speffRow["vfxId"].Value.SetValue(-1);
+                AddOrReplaceRow(param[ParamType.SpEffectParam], speffRow);
+
+                FsParam.Row bulletRow = CloneRow(GetRow(param[ParamType.Bullet], bulletTemplate), $"{name} bullet", bullet);
+                bulletRow["spEffectId0"].Value.SetValue(signal);
+                bulletRow["spEffectId1"].Value.SetValue(0);
+                // Buffs the caster wherever the projectile goes, so an air castable motion still works.
+                bulletRow["spEffectIDForShooter"].Value.SetValue(signal);
+                AddOrReplaceRow(param[ParamType.Bullet], bulletRow);
+
+                FsParam.Row magicRow = CloneRow(GetRow(param[ParamType.Magic], spellTemplate), name, spell);
+                magicRow["refId1"].Value.SetValue(bullet);
+                magicRow["refType"].Value.SetValue((byte)106);      // QUICK_FLAME, castable in the air
+                magicRow["ezStateBehaviorType"].Value.SetValue((byte)1);
+                magicRow["spEffectCategory"].Value.SetValue((byte)4);
+                magicRow["requirementFaith"].Value.SetValue((byte)0);
+                magicRow["requirementIntellect"].Value.SetValue((byte)0);
+                magicRow["mp"].Value.SetValue((short)10);
+                magicRow["castSfxId"].Value.SetValue(523000);
+                magicRow["fireSfxId"].Value.SetValue(523001);
+                magicRow["effectSfxId"].Value.SetValue(510010);
+                AddOrReplaceRow(param[ParamType.Magic], magicRow);
+
+                FsParam.Row goodsRow = CloneRow(GetRow(param[ParamType.EquipParamGoods], spellTemplate), name, spell);
+                goodsRow["sortId"].Value.SetValue(sortId);
+                AddOrReplaceRow(param[ParamType.EquipParamGoods], goodsRow);
             }
         }
 
