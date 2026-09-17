@@ -244,7 +244,7 @@ namespace JortPob
                                                 if env(IsCOMPlayer) == FALSE then
                                                     local SetEventFlag = 10003
                                                     local TraversePointerChain = 10000
-                                                    local GAME_DATA_MAN = 0x3D5DF38
+                                                    local GAME_DATA_MAN = 0x3D61F98
                                                     local PLAYER_GAME_INFO = 0x8
                                                     local SOUL_COUNT = 0x6c
                                             		local UNSIGNED_INT = 4

@@ -92,6 +92,20 @@ namespace JortPob.Model
                 mats[i].m_materialNameData = ((uint)source[i]); // fixed i guess!
             }
 
+            /* Vanilla asset collision materials are shared (m_isExclusive == 0). The obj2fsnp -> AssetCc2 -> hknp2fsnp chain */
+            /* emits m_isExclusive == 1, which makes the engine allocate a fresh hknpMaterialLibrary entry for every asset */
+            /* instance and never free it. The library uses 16-bit ids (fuck u FromSoft), so after 65536 instances it corrupts */
+            /* itself and the game crashes in hknpMaterialLibrary::addEntry (strcmp on a garbage entry). Clearing the flag lets */
+            /* identical materials dedupe into one shared library entry. */
+            HKLib.hk2018.hknpPhysicsSceneData sceneData = (HKLib.hk2018.hknpPhysicsSceneData)hkx.m_namedVariants[0].m_variant;
+            foreach (HKLib.hk2018.hknpPhysicsSystemData systemData in sceneData.m_systemDatas)
+            {
+                foreach (HKLib.hk2018.hknpMaterial material in systemData.m_materials)
+                {
+                    material.m_isExclusive = 0;
+                }
+            }
+
             HavokBinarySerializer binarySerializer = new(registry);
             HavokXmlSerializer xmlSerializer = new(registry);
             using (MemoryStream ms = new MemoryStream())
