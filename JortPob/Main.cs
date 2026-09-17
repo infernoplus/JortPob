@@ -1128,6 +1128,7 @@ namespace JortPob
             scriptManager.GenerateAreaEvents();
             scriptManager.GenerateGlobalCrimeAbsolvedEvent();
             scriptManager.GenerateGlobalResetHostilityEvent();
+            scriptManager.GenerateNativeSpellEvents();
 
             /* Generate some params and write to file */
             Lort.Log($"Creating PARAMs...", Lort.Type.Main);

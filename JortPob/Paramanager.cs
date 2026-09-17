@@ -910,10 +910,10 @@ namespace JortPob
 
         private static readonly (int spell, int signal, int bullet, int sortId, float duration, string name)[] NEW_SPELLS =
         {
-            (6990, 6900001, 69900000, 302001, 60f, "Icarian Flight"),
-            (6991, 6900002, 69900010, 302002, 60f, "Slowfall"),
-            (6992, 6900003, 69900020, 302003, 60f, "Levitation"),
-            (6993, 6900004, 69900030, 302004, 60f, "Jump"),
+            (6990, Const.NATIVE_SPEFF_ICARIAN, 69900000, 302001, 60f, "Icarian Flight"),
+            (6991, Const.NATIVE_SPEFF_SLOW_FALL, 69900010, 302002, 60f, "Slowfall"),
+            (6992, Const.NATIVE_SPEFF_LEVITATE, 69900020, 302003, 60f, "Levitation"),
+            (6993, Const.NATIVE_SPEFF_JUMP, 69900030, 302004, 60f, "Jump"),
         };
 
         public void GenerateNativeSpellParams()

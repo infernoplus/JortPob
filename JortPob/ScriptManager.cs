@@ -495,6 +495,44 @@ namespace JortPob
             }
         }
 
+        /* Writes the values scrolls_native.dll reads from event flags. While a spell's signal speffect is on the
+           player the event assigns its flag ranges; when the speffect expires it zeroes them.
+           Flag ids and the x100 fixed point match scrolls_native.toml. */
+        private static readonly (int signal, string name, (uint flag, int value)[] publish)[] NATIVE_SPELL_FLAGS =
+        {
+            (Const.NATIVE_SPEFF_ICARIAN,   "IcarianFlight", new (uint, int)[] { (Const.NATIVE_FLAG_JUMP, 5000), (Const.NATIVE_FLAG_JUMP_XZ, 5000) }),
+            (Const.NATIVE_SPEFF_SLOW_FALL, "Slowfall",      new (uint, int)[] { (Const.NATIVE_FLAG_SLOW_FALL, 200) }),
+            (Const.NATIVE_SPEFF_LEVITATE,  "Levitation",    new (uint, int)[] { (Const.NATIVE_FLAG_LEVITATE, 550) }),
+            (Const.NATIVE_SPEFF_JUMP,      "Jump",          new (uint, int)[] { (Const.NATIVE_FLAG_JUMP, 1000), (Const.NATIVE_FLAG_JUMP_XZ, 100) }),
+        };
+
+        public void GenerateNativeSpellEvents()
+        {
+            foreach ((int signal, string name, (uint flag, int value)[] publish) in NATIVE_SPELL_FLAGS)
+            {
+                Script.Flag eventFlag = common.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"Global:NativeSpell{name}");
+                EMEVD.Event spellEvent = new();
+                spellEvent.ID = eventFlag.id;
+
+                spellEvent.Instructions.Add(common.AUTO.ParseAdd($"IfCharacterHasSpEffect(MAIN, 10000, {signal}, true, 0, 1);"));
+                foreach ((uint flag, int value) in publish)
+                {
+                    spellEvent.Instructions.Add(common.AUTO.ParseAdd($"EventValueOperation({flag}, 32, {value}, 0, 1, 5);")); // 5 is CalculationType.Assign
+                }
+
+                spellEvent.Instructions.Add(common.AUTO.ParseAdd($"IfCharacterHasSpEffect(MAIN, 10000, {signal}, false, 0, 1);"));
+                foreach ((uint flag, int _) in publish)
+                {
+                    spellEvent.Instructions.Add(common.AUTO.ParseAdd($"EventValueOperation({flag}, 32, 0, 0, 1, 5);"));
+                }
+
+                spellEvent.Instructions.Add(common.AUTO.ParseAdd($"EndUnconditionally(EventEndType.Restart);"));
+
+                common.emevd.Events.Add(spellEvent);
+                common.init.Instructions.Add(common.AUTO.ParseAdd($"InitializeEvent(0, {eventFlag.id})"));
+            }
+        }
+
         /* This event is triggered when player goes to jail or pays fines to a guard. Resets all crime stuff like npc hostility and crime gold */
         public void GenerateGlobalCrimeAbsolvedEvent()
         {

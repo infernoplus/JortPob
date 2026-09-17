@@ -21,6 +21,13 @@ carry_decay = 1.0
 carry_max_speed = 150.0
 # Camera catch-up per frame while airborne, 0-1. Vanilla ~0.1. 0 = leave vanilla.
 camera_follow = 0.35
+# Optional per-spell multiplier overrides. 
+# Commented out = use what the spell published through EMEVD.
+# Uncomment to tune live
+#icarian_vertical = 50.0
+#icarian_horizontal = 50.0
+#jump_vertical = 10.0
+#jump_horizontal = 1.0
 
 [slow_fall]
 # Max fall speed, m/s. 0 = no clamp.

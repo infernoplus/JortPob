@@ -171,6 +171,18 @@ namespace JortPob.Common
         /// param row starting id for this type of param
         public static readonly short PART_DRAW_PARAM = 9000;
 
+        /// scrolls_native.dll spell signals.
+        public static readonly int NATIVE_SPEFF_ICARIAN = 6900001;
+        public static readonly int NATIVE_SPEFF_SLOW_FALL = 6900002;
+        public static readonly int NATIVE_SPEFF_LEVITATE = 6900003;
+        public static readonly int NATIVE_SPEFF_JUMP = 6900004;
+
+        /// flags scrolls_native.dll reads its movement values out of.l
+        public static readonly uint NATIVE_FLAG_JUMP = 11105800;
+        public static readonly uint NATIVE_FLAG_JUMP_XZ = 11105832;
+        public static readonly uint NATIVE_FLAG_SLOW_FALL = 11105864;
+        public static readonly uint NATIVE_FLAG_LEVITATE = 11105932;
+
         /// used to build water. primarily, if a collision triangle is under this value it becomes the water material. i have no idea why morrowind water is at -3f
         public static readonly float WATER_HEIGHT = -3 * GLOBAL_SCALE;
 

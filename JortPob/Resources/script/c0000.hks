@@ -4101,7 +4101,7 @@ end
 
 function ExecJump()
     -- block mid-air double jump; env(IsFalling) is suppressed for walk-on-air.
-    if env(GetEventFlag, "11105900") == 1 then
+    if env(GetEventFlag, AIRBORNE_FLAG) == 1 then
         return FALSE
     end
     -- Note: Restored original value during full remake. Repo values was ACTION_ARM_JUMP instead of ACTION_ARM_CHANGE_STYLE
@@ -8582,7 +8582,7 @@ function FallStart_onUpdate()
     -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
     -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
     if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
-        if env(GetEventFlag, "11105901") == 1 then
+        if env(GetEventFlag, SLOW_FALL_IDLE_FLAG) == 1 then
             SetVariable("MoveSpeedLevelReal", 0)
             ExecEventNoReset("W_Idle")
             return
@@ -8604,7 +8604,7 @@ function FallJumpStart_onUpdate()
     -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
     -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
     if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
-        if env(GetEventFlag, "11105901") == 1 then
+        if env(GetEventFlag, SLOW_FALL_IDLE_FLAG) == 1 then
             SetVariable("MoveSpeedLevelReal", 0)
             ExecEventNoReset("W_Idle")
             return
@@ -8626,7 +8626,7 @@ function FallLoop_onUpdate()
     -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
     -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
     if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
-        if env(GetEventFlag, "11105901") == 1 then
+        if env(GetEventFlag, SLOW_FALL_IDLE_FLAG) == 1 then
             SetVariable("MoveSpeedLevelReal", 0)
             ExecEventNoReset("W_Idle")
             return
@@ -26093,9 +26093,6 @@ DAMAGE_PHYSICAL_NORMAL = 3
 
 IS_ATTACKED_JUMPMAGIC = FALSE
 
-SLOW_FALL_SPEFFECT = 6900002
-LEVITATE_SPEFFECT = 6900003
-
 g_IsMimicry = 0
 g_EnableMimicry = 0
 g_ComboReset = FALSE
@@ -26444,7 +26441,14 @@ GetTalkBehavior = 3001
 GetTalkEzStateBehaviourID = 3002
 
 Unknown9999 = 9999
+------------------------
+-- Native ID stuff
+------------------------
 GetEventFlag = 10003
+SLOW_FALL_SPEFFECT = 6900002
+LEVITATE_SPEFFECT = 6900003
+AIRBORNE_FLAG = "11105900"
+SLOW_FALL_IDLE_FLAG = "11105901"
 
 ------------------------
 -- Commands
