@@ -4100,6 +4100,10 @@ function GetHandChangeType(hand)
 end
 
 function ExecJump()
+    -- block mid-air double jump; env(IsFalling) is suppressed for walk-on-air.
+    if env(GetEventFlag, "11105900") == 1 then
+        return FALSE
+    end
     -- Note: Restored original value during full remake. Repo values was ACTION_ARM_JUMP instead of ACTION_ARM_CHANGE_STYLE
     -- note: Original decompile of 1.10 has ACTION_ARM_CHANGE_STYLE instead of jump
     if env(ActionRequest, ACTION_ARM_CHANGE_STYLE) == FALSE and env(IsAIJumpRequested) == FALSE then
@@ -5599,7 +5603,7 @@ function FallCommonFunction(is_enable_falling_death, is_jump, fall_style)
     local height = env(GetFallHeight) / 100
     local damage_type = env(GetReceivedDamageType)
     local style = c_Style
-    if damage_type == DAMAGE_TYPE_DEATH_FALLING then
+    if damage_type == DAMAGE_TYPE_DEATH_FALLING and env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE then
         if fall_style == FALL_FACEUP then
             ExecEventAllBody("W_FallDeathFaceUp")
         elseif fall_style == FALL_FACEDOWN then
@@ -5609,7 +5613,7 @@ function FallCommonFunction(is_enable_falling_death, is_jump, fall_style)
         end
         return TRUE
     end
-    if is_enable_falling_death ~= TRUE or not (height >= 60) or env(GetStateChangeType, 266) == TRUE then
+    if is_enable_falling_death ~= TRUE or not (height >= 60) or env(GetStateChangeType, 266) == TRUE or env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
     else
         if fall_style == FALL_FACEUP then
             ExecEventAllBody("W_FallDeathFaceUp")
@@ -8575,26 +8579,76 @@ function GuardStart_JustGuard4_SelfTrans_Upper_onDeactivate()
 end
 
 function FallStart_onUpdate()
+    -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
+    -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
+        if env(GetEventFlag, "11105901") == 1 then
+            SetVariable("MoveSpeedLevelReal", 0)
+            ExecEventNoReset("W_Idle")
+            return
+        end
+    end
+    if env(GetSpEffectID, LEVITATE_SPEFFECT) == TRUE then
+        if MoveStart(ALLBODY, Event_Move, FALSE) == TRUE then
+            return
+        end
+        ExecEventAllBody("W_Idle")
+        return
+    end
     if FallCommonFunction(TRUE, FALSE, FALL_DEFAULT) == TRUE then
         return
     end
 end
 
 function FallJumpStart_onUpdate()
+    -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
+    -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
+        if env(GetEventFlag, "11105901") == 1 then
+            SetVariable("MoveSpeedLevelReal", 0)
+            ExecEventNoReset("W_Idle")
+            return
+        end
+    end
+    if env(GetSpEffectID, LEVITATE_SPEFFECT) == TRUE then
+        if MoveStart(ALLBODY, Event_Move, FALSE) == TRUE then
+            return
+        end
+        ExecEventAllBody("W_Idle")
+        return
+    end
     if FallCommonFunction(TRUE, TRUE, FALL_DEFAULT) == TRUE then
         return
     end
 end
 
 function FallLoop_onUpdate()
-    if env(GetSpEffectID, 19935) == TRUE then
-        if env(IsHamariFallDeath, 20) == TRUE then
+    -- 11105901 1 = hold idle pose, 0 = keep the fall animation and strafe.
+    -- ExecEventNoReset, not AllBody: AllBody replays the opening TAE every frame.
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
+        if env(GetEventFlag, "11105901") == 1 then
+            SetVariable("MoveSpeedLevelReal", 0)
+            ExecEventNoReset("W_Idle")
+            return
+        end
+    end
+    if env(GetSpEffectID, LEVITATE_SPEFFECT) == TRUE then
+        if MoveStart(ALLBODY, Event_Move, FALSE) == TRUE then
+            return
+        end
+        ExecEventAllBody("W_Idle")
+        return
+    end
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE then
+        if env(GetSpEffectID, 19935) == TRUE then
+            if env(IsHamariFallDeath, 20) == TRUE then
+                ExecEvent("W_FallDeath")
+                return
+            end
+        elseif env(IsHamariFallDeath, 12) == TRUE then
             ExecEvent("W_FallDeath")
             return
         end
-    elseif env(IsHamariFallDeath, 12) == TRUE then
-        ExecEvent("W_FallDeath")
-        return
     end
     if FallCommonFunction(TRUE, FALSE, FALL_DEFAULT) == TRUE then
         return
@@ -8634,14 +8688,16 @@ function FallStartFaceDown_onUpdate()
 end
 
 function FallLoopFaceUp_onUpdate()
-    if env(GetSpEffectID, 19935) == TRUE then
-        if env(IsHamariFallDeath, 20) == TRUE then
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE then
+        if env(GetSpEffectID, 19935) == TRUE then
+            if env(IsHamariFallDeath, 20) == TRUE then
+                ExecEvent("W_FallDeathFaceUp")
+                return
+            end
+        elseif env(IsHamariFallDeath, 12) == TRUE then
             ExecEvent("W_FallDeathFaceUp")
             return
         end
-    elseif env(IsHamariFallDeath, 12) == TRUE then
-        ExecEvent("W_FallDeathFaceUp")
-        return
     end
     if FallCommonFunction(TRUE, FALSE, FALL_FACEUP) == TRUE then
         return
@@ -8649,14 +8705,16 @@ function FallLoopFaceUp_onUpdate()
 end
 
 function FallLoopFaceDown_onUpdate()
-    if env(GetSpEffectID, 19935) == TRUE then
-        if env(IsHamariFallDeath, 20) == TRUE then
+    if env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE then
+        if env(GetSpEffectID, 19935) == TRUE then
+            if env(IsHamariFallDeath, 20) == TRUE then
+                ExecEvent("W_FallDeathFaceDown")
+                return
+            end
+        elseif env(IsHamariFallDeath, 12) == TRUE then
             ExecEvent("W_FallDeathFaceDown")
             return
         end
-    elseif env(IsHamariFallDeath, 12) == TRUE then
-        ExecEvent("W_FallDeathFaceDown")
-        return
     end
     if FallCommonFunction(TRUE, FALSE, FALL_FACEDOWN) == TRUE then
         return
@@ -26035,6 +26093,9 @@ DAMAGE_PHYSICAL_NORMAL = 3
 
 IS_ATTACKED_JUMPMAGIC = FALSE
 
+SLOW_FALL_SPEFFECT = 6900002
+LEVITATE_SPEFFECT = 6900003
+
 g_IsMimicry = 0
 g_EnableMimicry = 0
 g_ComboReset = FALSE
@@ -26383,6 +26444,7 @@ GetTalkBehavior = 3001
 GetTalkEzStateBehaviourID = 3002
 
 Unknown9999 = 9999
+GetEventFlag = 10003
 
 ------------------------
 -- Commands
