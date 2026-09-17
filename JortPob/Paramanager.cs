@@ -910,10 +910,11 @@ namespace JortPob
 
         private static readonly (int spell, int signal, int bullet, int sortId, float duration, string name)[] NEW_SPELLS =
         {
-            (6990, Const.NATIVE_SPEFF_ICARIAN, 69900000, 302001, 60f, "Icarian Flight"),
-            (6991, Const.NATIVE_SPEFF_SLOW_FALL, 69900010, 302002, 60f, "Slowfall"),
-            (6992, Const.NATIVE_SPEFF_LEVITATE, 69900020, 302003, 60f, "Levitation"),
-            (6993, Const.NATIVE_SPEFF_JUMP, 69900030, 302004, 60f, "Jump"),
+            (Const.NATIVE_SPELL_ICARIAN, Const.NATIVE_SPEFF_ICARIAN, 69900000, 302001, 60f, "Icarian Flight"),
+            (Const.NATIVE_SPELL_SLOW_FALL, Const.NATIVE_SPEFF_SLOW_FALL, 69900010, 302002, 60f, "Slowfall"),
+            (Const.NATIVE_SPELL_LEVITATE, Const.NATIVE_SPEFF_LEVITATE, 69900020, 302003, 60f, "Levitation"),
+            (Const.NATIVE_SPELL_JUMP, Const.NATIVE_SPEFF_JUMP, 69900030, 302004, 60f, "Jump"),
+            (Const.NATIVE_SPELL_HOPTOAD, Const.NATIVE_SPEFF_HOPTOAD, 69900040, 302005, 60f, "Tinur's Hoptoad"),
         };
 
         public void GenerateNativeSpellParams()
@@ -952,6 +953,8 @@ namespace JortPob
                 FsParam.Row goodsRow = CloneRow(GetRow(param[ParamType.EquipParamGoods], spellTemplate), name, spell);
                 goodsRow["sortId"].Value.SetValue(sortId);
                 AddOrReplaceRow(param[ParamType.EquipParamGoods], goodsRow);
+
+                textManager.AddGoods(spell, name, "Information informs you.", "Descriptions describe things!", "More information.");
             }
         }
 

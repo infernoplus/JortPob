@@ -1,4 +1,4 @@
-{
+﻿{
   "spark": {
     "row": 6900,
     "comment": "Spark to lightning spear",
@@ -703,5 +703,22 @@
   "bound shield": {
       "row": 4470,
       "comment": "bound shield to scholar's shield"
+  },
+
+  "slowfall": {
+      "row": 6991,
+      "comment": "slowfall to scrolls-native slowfall"
+  },
+  "levitate": {
+      "row": 6992,
+      "comment": "levitate to scrolls-native levitation. the stronger variants are left unmapped, they would only duplicate the shop row"
+  },
+  "jump": {
+      "row": 6993,
+      "comment": "jump to scrolls-native jump"
+  },
+  "tinur's hoptoad": {
+      "row": 6994,
+      "comment": "hoptoad to scrolls-native tinur's hoptoad, a stronger jump than the jump spell"
   }
 }

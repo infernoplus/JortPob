@@ -504,6 +504,7 @@ namespace JortPob
             (Const.NATIVE_SPEFF_SLOW_FALL, "Slowfall",      new (uint, int)[] { (Const.NATIVE_FLAG_SLOW_FALL, 200) }),
             (Const.NATIVE_SPEFF_LEVITATE,  "Levitation",    new (uint, int)[] { (Const.NATIVE_FLAG_LEVITATE, 550) }),
             (Const.NATIVE_SPEFF_JUMP,      "Jump",          new (uint, int)[] { (Const.NATIVE_FLAG_JUMP, 1000), (Const.NATIVE_FLAG_JUMP_XZ, 100) }),
+            (Const.NATIVE_SPEFF_HOPTOAD,   "TinursHoptoad", new (uint, int)[] { (Const.NATIVE_FLAG_JUMP, 2500), (Const.NATIVE_FLAG_JUMP_XZ, 200) }),
         };
 
         public void GenerateNativeSpellEvents()

@@ -1,4 +1,4 @@
-using Mutagen.Bethesda;
+﻿using Mutagen.Bethesda;
 using SoulsFormats;
 using System.Collections.Generic;
 using System.IO;
@@ -171,13 +171,21 @@ namespace JortPob.Common
         /// param row starting id for this type of param
         public static readonly short PART_DRAW_PARAM = 9000;
 
+        /// scrolls_native.dll spell rows. the Magic and EquipParamGoods ids.
+        public static readonly int NATIVE_SPELL_ICARIAN = 6990;
+        public static readonly int NATIVE_SPELL_SLOW_FALL = 6991;
+        public static readonly int NATIVE_SPELL_LEVITATE = 6992;
+        public static readonly int NATIVE_SPELL_JUMP = 6993;
+        public static readonly int NATIVE_SPELL_HOPTOAD = 6994;
+
         /// scrolls_native.dll spell signals.
         public static readonly int NATIVE_SPEFF_ICARIAN = 6900001;
         public static readonly int NATIVE_SPEFF_SLOW_FALL = 6900002;
         public static readonly int NATIVE_SPEFF_LEVITATE = 6900003;
         public static readonly int NATIVE_SPEFF_JUMP = 6900004;
+        public static readonly int NATIVE_SPEFF_HOPTOAD = 6900005;
 
-        /// flags scrolls_native.dll reads its movement values out of.l
+        /// flags scrolls_native.dll reads its movement values out of.
         public static readonly uint NATIVE_FLAG_JUMP = 11105800;
         public static readonly uint NATIVE_FLAG_JUMP_XZ = 11105832;
         public static readonly uint NATIVE_FLAG_SLOW_FALL = 11105864;
