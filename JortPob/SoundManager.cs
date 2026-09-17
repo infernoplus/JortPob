@@ -1,5 +1,6 @@
 ﻿using JortPob.Common;
 using JortPob.Worker;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -53,6 +54,74 @@ namespace JortPob
             music = new(globals);
         }
 
+        // this generates the json file used for the VA manifest, which is used to link lines to npcs and info for the override system.
+        // This is only generated in debug mode since it's really only useful for development,
+        public void GenerateVAManifest()
+        {
+            // #if DEBUG
+            var vaManifestContents = new
+            {
+                lines = samQueue
+                    .Select(sam => new
+                    {
+                        hash = sam.hashName,
+                        sam.line,
+                        sam.info.type,
+                        sam.info.race,
+                        sam.info.rank,
+                        gender = sam.info.sex,
+                        sam.info.faction,
+                        sam.info.job,
+                        sam.info.cell,
+                        sam.info.disposition,
+                        sam.info.filters
+                    })
+                    .DistinctBy(line => line.hash)
+                    .ToList(),
+
+                npcs = samQueue
+                    .GroupBy(sam => new
+                    {
+                        sam.npc.name,
+                        race = sam.npc.race,
+                        sam.npc.rank,
+                        gender = sam.npc.sex,
+                        sam.npc.faction,
+                        sam.npc.job,
+                        sam.npc.services,
+                        sam.npc.disposition,
+                        sam.npc.essential,
+                        sam.npc.reputation,
+                        entity = (int)sam.npc.entity
+                    })
+                    .Select(group => new
+                    {
+                        unique = Override.CheckCustomVoice(group.Key.name),
+                        group.Key.name,
+                        group.Key.race,
+                        group.Key.rank,
+                        group.Key.gender,
+                        group.Key.faction,
+                        group.Key.job,
+                        group.Key.services,
+                        group.Key.disposition,
+                        group.Key.essential,
+                        group.Key.reputation,
+                        group.Key.entity,
+
+                        hashes = group
+                            .Select(sam => sam.hashName)
+                            .Distinct()
+                            .ToList()
+                    })
+                    .ToList()
+            };
+
+            var vaManifest = JsonConvert.SerializeObject(vaManifestContents);
+            File.WriteAllText($"{Const.CACHE_PATH}/Manifest.json", vaManifest);
+            // #endif
+        }
+
         /* Either returns an existing bank meeting the requirements, or makes a new one */
         public SoundBankInfo GetBank(CharacterContent npc)
         {
@@ -61,7 +130,7 @@ namespace JortPob
 
             foreach (SoundBankInfo bankInfo in banks)
             {
-                if(useCustom && bankInfo.race == CharacterContent.Race.Custom && bankInfo.custom == npc.id && bankInfo.uses <= Const.MAX_ESD_PER_VCBNK)
+                if (useCustom && bankInfo.race == CharacterContent.Race.Custom && bankInfo.custom == npc.id && bankInfo.uses <= Const.MAX_ESD_PER_VCBNK)
                 {
                     return bankInfo;
                 }
@@ -76,7 +145,7 @@ namespace JortPob
             }
             SoundBankInfo bnk;
             if (useCustom) { bnk = new(nextBankId++, CharacterContent.Race.Custom, npc.sex, new SoundBank(globals), npc.id); }
-            else if(isCreature) { bnk = new(nextBankId++, CharacterContent.Race.Creature, npc.sex, new SoundBank(globals), npc.id); }
+            else if (isCreature) { bnk = new(nextBankId++, CharacterContent.Race.Creature, npc.sex, new SoundBank(globals), npc.id); }
             else { bnk = new(nextBankId++, npc.race, npc.sex, new SoundBank(globals)); }
             banks.Add(bnk);
             return bnk;
@@ -117,7 +186,7 @@ namespace JortPob
             samQueue.Add(dat);
 
             if (useCustom) { return Path.Combine(Const.CACHE_PATH, @$"dialog\{CharacterContent.Race.Custom}\{npc.id}\{dialog.id}\{hashName}\{hashName}.wem"); }
-            else if(isCreature) { return Path.Combine(Const.CACHE_PATH, @$"dialog\{CharacterContent.Race.Creature}\{npc.id}\{dialog.id}\{hashName}\{hashName}.wem"); }
+            else if (isCreature) { return Path.Combine(Const.CACHE_PATH, @$"dialog\{CharacterContent.Race.Creature}\{npc.id}\{dialog.id}\{hashName}\{hashName}.wem"); }
             else { return Path.Combine(Const.CACHE_PATH, @$"dialog\{npc.race}\{npc.sex}\{dialog.id}\{hashName}\{hashName}.wem"); }
         }
 
@@ -129,6 +198,8 @@ namespace JortPob
         public void Write()
         {
             if (Const.DEBUG_SKIP_SOUND) { return; } // worlds largest time save
+
+            GenerateVAManifest();
 
             SamWorker.Go(samQueue); // actually generate tts and convert wems
 
@@ -188,7 +259,7 @@ namespace JortPob
                     string bnkPath = $@"{bnkDir}.bnk";
                     string bnkRebuiltPath = $@"{bnkDir}.created.bnk";
 
-                    if(Const.DEBUG_REUSE_FILES && File.Exists(bnkPath)) { Lort.TaskIterate(); return; } // if debug_reuse is on, skip if file already created
+                    if (Const.DEBUG_REUSE_FILES && File.Exists(bnkPath)) { Lort.TaskIterate(); return; } // if debug_reuse is on, skip if file already created
 
                     ProcessStartInfo startInfo = new(Utility.ResourcePath(@"tools\Bnk2Json\bnk2json.exe"), $"\"{bnkDir}\"")
                     {

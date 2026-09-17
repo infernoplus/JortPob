@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using WitchyFormats;
 using Xbrz;
 
@@ -512,8 +513,15 @@ namespace JortPob.Common
                 throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
             }
 
+            Task<string> stdoutTask = startInfo.RedirectStandardOutput
+                ? process.StandardOutput.ReadToEndAsync()
+                : Task.FromResult(string.Empty);
+            Task<string> stderrTask = startInfo.RedirectStandardError
+                ? process.StandardError.ReadToEndAsync()
+                : Task.FromResult(string.Empty);
+
             bool exited;
-            if(timeOutMillis == 0) { exited = process.WaitForExit(TimeSpan.FromMilliseconds(Const.DEFAULT_PROCESS_TIMEOUT)); }
+            if (timeOutMillis == 0) { exited = process.WaitForExit(TimeSpan.FromMilliseconds(Const.DEFAULT_PROCESS_TIMEOUT)); }
             else if (timeOutMillis < 0) { process.WaitForExit(); exited = true; }
             else { exited = process.WaitForExit(TimeSpan.FromMilliseconds(timeOutMillis)); }
 
@@ -521,23 +529,24 @@ namespace JortPob.Common
             {
                 try
                 {
-                    // Forceful termination if timeout occurs
-                    process.Kill();
+                    process.Kill(entireProcessTree: true);
                     process.WaitForExit(); // Wait for OS cleanup
-                    throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
                 }
                 catch (InvalidOperationException)
                 {
                     // Process may have just exited before Kill() was called.
-                    // We'll proceed to check the exit code below.
                 }
+
+                Task.WaitAll(stdoutTask, stderrTask);
+                throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
             }
+
+            Task.WaitAll(stdoutTask, stderrTask);
 
             // VITAL: Check the process exit code after successful exit or timeout kill
             if (process.ExitCode != 0)
             {
-                // Optional: Read StandardError for better debugging info
-                string error = startInfo.RedirectStandardError ? process.StandardError.ReadToEnd() : "N/A (Error stream not redirected)";
+                string error = startInfo.RedirectStandardError ? stderrTask.Result : "N/A (Error stream not redirected)";
 
                 // Throw a specific exception indicating execution failure
                 throw new ApplicationException($"Process failed with exit code {process.ExitCode}. Error: {error}");
