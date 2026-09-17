@@ -370,11 +370,11 @@ namespace JortPob.Common
         /// lava area near Galom Daeus = new int[] {8, -2, 12, 2}
         /// lava and swamp areas combined = new int[] {-10, -10, 15, 5};
         /// half the map = new int[] {-10, -15, 20, 0};
-        [Setting(DefaultValue = new int[] { })]
+        [Setting(DefaultValue = null)]
         public static int[] DEBUG_EXCLUSIVE_BUILD_BY_BOX { get; private set; }
 
         /// set to "null" or remove from settings.json to build entire map.
-        [Setting(DefaultValue = new string[] { })]
+        [Setting(DefaultValue = null)]
         public static string[] DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME_MATCHES { get; private set; }
 
         public static bool DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME(string name)
