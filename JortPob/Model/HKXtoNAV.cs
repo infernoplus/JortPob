@@ -2,8 +2,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
-using System.Threading;
 
 namespace JortPob.Model
 {
@@ -19,45 +17,13 @@ namespace JortPob.Model
                 WorkingDirectory = navDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
             };
 
-            using Process process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
-
-            process.OutputDataReceived += (_, e) =>
+            Utility.ExecuteProcess(startInfo, timeoutMillis, line =>
             {
-                if (e.Data == null) return;
-                if (onProgress != null && e.Data.StartsWith("PROG", StringComparison.Ordinal))
-                    onProgress();
-            };
-            StringBuilder stderr = new();
-            process.ErrorDataReceived += (_, e) => { if (e.Data != null) lock (stderr) stderr.AppendLine(e.Data); };
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            int effectiveTimeout =
-                timeoutMillis == 0 ? Const.DEFAULT_PROCESS_TIMEOUT :
-                timeoutMillis < 0  ? Timeout.Infinite :
-                                     timeoutMillis;
-
-            if (!process.WaitForExit(effectiveTimeout))
-            {
-                try { process.Kill(entireProcessTree: true); process.WaitForExit(5000); }
-                catch (InvalidOperationException) { /* already exited */ }
-                throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
-            }
-            process.WaitForExit();
-
-            // log failure
-            if (process.ExitCode != 0)
-            {
-                string detail;
-                lock (stderr) detail = stderr.ToString();
-                throw new ApplicationException(
-                    $"NavGenWorker exited {process.ExitCode} (failed navmeshes). {detail}");
-            }
+                if (onProgress != null && line.StartsWith("PROG", StringComparison.Ordinal)) { onProgress(); }
+            });
         }
+
     }
 }

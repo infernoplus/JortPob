@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WitchyFormats;
@@ -506,7 +507,12 @@ namespace JortPob.Common
             else { ExecuteProcess(startInfo, -1); }
         }
 
-        public static void ExecuteProcess(ProcessStartInfo startInfo, int timeOutMillis = 0)
+        /// <param name="onOutputLine">
+        /// Called per stdout line as it arrives, on a threadpool thread.
+        /// Used so the caller can report progress.
+        /// Ignored if the process can't redirect.
+        /// </param>
+        public static void ExecuteProcess(ProcessStartInfo startInfo, int timeOutMillis = 0, Action<string> onOutputLine = null)
         {
             // Redirect AND drain both stdout and stderr concurrently. 
             bool canRedirect = !startInfo.UseShellExecute;
@@ -522,18 +528,36 @@ namespace JortPob.Common
                 throw new InvalidOperationException($"Failed to start process: {startInfo.FileName}");
             }
 
+            StringBuilder stdout = new();
+            StringBuilder stderr = new();
+            Exception callbackError = null;
+
+            async Task Drain(StreamReader reader, StringBuilder sink, bool report)
+            {
+                string line;
+                while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+                {
+                    lock (sink) { sink.AppendLine(line); }
+                    if (!report || onOutputLine == null) { continue; }
+                    // A throwing callback must not stop the drain or the child blocks on a full pipe.
+                    try { onOutputLine(line); }
+                    catch (Exception ex) { callbackError ??= ex; }
+                }
+            }
+
             // Start draining immediately, in parallel with the wait, so the pipes never fill.
-            Task<string> stdoutTask = canRedirect ? process.StandardOutput.ReadToEndAsync() : Task.FromResult("");
-            Task<string> stderrTask = canRedirect ? process.StandardError.ReadToEndAsync() : Task.FromResult("");
+            Task drain = canRedirect
+                ? Task.WhenAll(Drain(process.StandardOutput, stdout, true),
+                               Drain(process.StandardError, stderr, false))
+                : Task.CompletedTask;
 
             int effectiveTimeout =
                 timeOutMillis == 0 ? Const.DEFAULT_PROCESS_TIMEOUT :
                 timeOutMillis < 0  ? Timeout.Infinite :
                                      timeOutMillis;
 
-            bool exited = process.WaitForExit(effectiveTimeout);
-
-            if (!exited)
+            bool timedOut = !process.WaitForExit(effectiveTimeout);
+            if (timedOut)
             {
                 try
                 {
@@ -545,27 +569,31 @@ namespace JortPob.Common
                 {
                     // Process may have just exited before Kill() was called.
                 }
-                throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}");
             }
 
-            // Process has exited, so the drain tasks are at EOF and complete immediately.
-            string stdout = SafeAwait(stdoutTask);
-            string stderr = SafeAwait(stderrTask);
+            // Join the drains so the captured output is complete: unbounded on a clean exit
+            // (both are at EOF), bounded after a kill. A broken pipe just means less detail.
+            try { if (timedOut) { drain.Wait(5000); } else { drain.Wait(); } }
+            catch (Exception) { }
 
-            // VITAL: Check the process exit code after a successful exit.
-            if (process.ExitCode != 0)
+            if (!timedOut && process.ExitCode == 0)
             {
-                string detail = canRedirect
-                    ? $"Error: {stderr}{(string.IsNullOrWhiteSpace(stdout) ? "" : $"\nOutput: {stdout}")}"
-                    : "N/A (streams not redirected)";
-                throw new ApplicationException($"Process failed with exit code {process.ExitCode}. {detail}");
+                if (callbackError != null)
+                {
+                    throw new ApplicationException($"Output callback threw: {callbackError.Message}", callbackError);
+                }
+                return;
             }
-        }
 
-        private static string SafeAwait(Task<string> task)
-        {
-            try { return task.GetAwaiter().GetResult(); }
-            catch { return ""; }
+            string err, output;
+            lock (stderr) { err = stderr.ToString(); }
+            lock (stdout) { output = stdout.ToString(); }
+            string detail = canRedirect
+                ? $"Error: {err}{(string.IsNullOrWhiteSpace(output) ? "" : $"\nOutput: {output}")}"
+                : "N/A (streams not redirected)";
+
+            if (timedOut) { throw new TimeoutException($"Process timed out and was killed: {startInfo.FileName}. {detail}"); }
+            throw new ApplicationException($"Process failed with exit code {process.ExitCode}. {detail}");
         }
     }
 
