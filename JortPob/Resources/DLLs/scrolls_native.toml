@@ -1,0 +1,59 @@
+# scrolls-native config. Auto-reloads in-game ~2 seconds after you save.
+
+[flags]
+# Base ids of the 32-bit EMEVD flag ranges the spells publish into. 0 = disabled.
+# Jump values are multipliers x100; slow_fall and levitate are on/off only.
+jump = 11105800
+jump_xz = 11105832
+slow_fall = 11105864
+levitate = 11105932
+
+[jump]
+# Ignore vertical root motion below this (m/frame). Filters out idle/walk noise.
+min_root_motion_y = 0.005
+# Horizontal air speed cap while jumping, m/s. Vanilla is 6.0. 0 = leave vanilla.
+max_horizontal_air_speed = 150.0
+# Keep the launch's horizontal speed through the fall.
+carry_momentum = true
+# Fraction of carried speed kept per second. 1.0 = none lost.
+carry_decay = 1.0
+# Cap on carried speed, m/s. 0 = uncapped.
+carry_max_speed = 150.0
+# Camera catch-up per frame while airborne, 0-1. Vanilla ~0.1. 0 = leave vanilla.
+camera_follow = 0.35
+
+[slow_fall]
+# Max fall speed, m/s. 0 = no clamp.
+fall_speed = 2.0
+# Gravity while slow falling. 1.0 = vanilla, lower = floatier.
+gravity_multiplier = 0.3
+# Steering speed, m/s. ~5.5 matches a run.
+air_speed = 5.5
+# How fast steering starts and stops, blend/sec. Higher = snappier.
+air_response = 14.0
+# Fraction of jump momentum kept per second while falling. Low = dies fast.
+momentum_decay = 0.05
+# Turn rate while falling. 1.0 = vanilla, higher = snaps to the stick.
+turn_rate_multiplier = 6.0
+# true = keep the fall animation and strafe. false = idle pose, body yaws to the stick.
+strafe = true
+# strafe only. true = body stays fixed, false = body turns to face travel.
+lock_facing = true
+# Ignored when strafe = true.
+suppress_falling = true
+
+[levitate]
+# Fly speed, m/s.
+speed = 5.5
+# Climb/dive speed as a multiple of fly speed.
+vertical_scale = 1.0
+# Look-pitch deadzone, 0-1. Below this, flight stays level.
+pitch_deadzone = 0.25
+# How fast flight starts and stops, blend/sec. Higher = snappier.
+response = 12.0
+
+[fall_protection]
+# Apply fall damage/death immunity while jumping or slow falling.
+enabled = true
+# 4080 = no fall damage, 4085 = no fall death.
+speffects = [4080, 4085]
