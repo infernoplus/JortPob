@@ -19,16 +19,23 @@ carry_momentum = true
 carry_decay = 1.0
 # Cap on carried speed, m/s. 0 = uncapped.
 carry_max_speed = 150.0
+# Clear the engine's grounded flag over the apex, where it stays set for ~17 frames and
+# leaves the player hanging in the jump pose. Not during the ascent - that zeroes fall damage.
+force_airborne = true
 # Camera catch-up per frame while airborne, 0-1. Vanilla ~0.1. 0 = leave vanilla.
 camera_follow = 0.35
-# Optional per-spell multiplier overrides. Commented out = use what the spell published
-# through EMEVD. Uncomment to tune live; the signal SpEffect picks which pair applies.
-#icarian_vertical = 50.0
-#icarian_horizontal = 50.0
-#jump_vertical = 10.0
-#jump_horizontal = 1.0
-#hoptoad_vertical = 25.0
-#hoptoad_horizontal = 2.0
+# Anchor/smoothing terms, 0-1. 0 = leave vanilla, which is what hides the
+# character's per-frame jitter. Raising it tightens the camera but shows the stutter.
+camera_anchor = 1.0
+# Optional per-spell multiplier overrides. 
+# Commented out = use what the spell publishes through EMEVD. 
+# Uncomment to tune live
+# icarian_vertical = 40.0
+# icarian_horizontal = 40.0
+# jump_vertical = 10.0
+# jump_horizontal = 1.0
+# hoptoad_vertical = 25.0
+# hoptoad_horizontal = 2.0
 
 [slow_fall]
 # Max fall speed, m/s. 0 = no clamp.
@@ -40,7 +47,9 @@ air_speed = 5.5
 # How fast steering starts and stops, blend/sec. Higher = snappier.
 air_response = 14.0
 # Fraction of jump momentum kept per second while falling. Low = dies fast.
-momentum_decay = 0.05
+momentum_decay = 0.35
+# Allows momentum to decay less when holding the stick in whatever direction
+momentum_decay_aligned = 0.9
 # Turn rate while falling. 1.0 = vanilla, higher = snaps to the stick.
 turn_rate_multiplier = 6.0
 # true = keep the fall animation and strafe. false = idle pose, body yaws to the stick.
@@ -65,3 +74,6 @@ response = 12.0
 enabled = true
 # 4080 = no fall damage, 4085 = no fall death.
 speffects = [4080, 4085]
+# DEBUG ONLY. Also protect a plain jump, so icarian flight can be tested without
+# casting slow fall to survive. Jumps are meant to land with real fall damage.
+debug_jump_no_fall_damage = false
