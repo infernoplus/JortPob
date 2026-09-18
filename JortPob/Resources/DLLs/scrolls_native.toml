@@ -31,7 +31,7 @@ camera_anchor = 1.0
 # Commented out = use what the spell publishes through EMEVD. 
 # Uncomment to tune live
 # icarian_vertical = 40.0
-# icarian_horizontal = 40.0
+# icarian_horizontal = 8.0
 # jump_vertical = 10.0
 # jump_horizontal = 1.0
 # hoptoad_vertical = 25.0
