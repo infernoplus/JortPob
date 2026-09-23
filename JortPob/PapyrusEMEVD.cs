@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
+using static JortPob.NpcManager;
 using static JortPob.Papyrus;
 
 namespace JortPob
@@ -95,6 +97,45 @@ namespace JortPob
             { Call.Type.SetSpeechcraft, (SpeffManager.StatMod.Arcane, .33f) },
         };
 
+        public static readonly Dictionary<Papyrus.Call.Type, string> GetStatMapping = new()
+        {
+            { Call.Type.GetStrength, "Strength"},
+            { Call.Type.GetIntelligence, "Intelligence"},
+            { Call.Type.GetWillpower, "Mind"},
+            { Call.Type.GetAgility, "Dexterity"},
+            { Call.Type.GetSpeed, "Dexterity"},
+            { Call.Type.GetEndurance, "Endurance"},
+            { Call.Type.GetPersonality, "Arcane"},
+            { Call.Type.GetLuck, "Arcane"},
+            { Call.Type.GetAcrobatics, "Strength"},
+            { Call.Type.GetAlchemy, "Intelligence"},
+            { Call.Type.GetAlteration, "Mind"},
+            { Call.Type.GetArmorer, "Strength"},
+            { Call.Type.GetAthletics, "Dexterity"},
+            { Call.Type.GetAxe, "Strength"},
+            { Call.Type.GetBlock, "Dexterity"},
+            { Call.Type.GetBluntWeapon, "Strength"},
+            { Call.Type.GetConjuration, "Intelligence"},
+            { Call.Type.GetDestruction, "Mind"},
+            { Call.Type.GetEnchant, "Intelligence"},
+            { Call.Type.GetHandToHand, "Dexterity"},
+            { Call.Type.GetHeavyArmor, "Endurance"},
+            { Call.Type.GetIllusion, "Arcane"},
+            { Call.Type.GetLightArmor, "Dexterity"},
+            { Call.Type.GetLongBlade, "Strength"},
+            { Call.Type.GetMarksman, "Dexterity"},
+            { Call.Type.GetMediumArmor, "Endurance"},
+            { Call.Type.GetMercantile, "Arcane"},
+            { Call.Type.GetMysticism, "Mind"},
+            { Call.Type.GetRestoration, "Faith"},
+            { Call.Type.GetSecurity, "Intelligence"},
+            { Call.Type.GetShortBlade, "Dexterity"},
+            { Call.Type.GetSneak, "Dexterity"},
+            { Call.Type.GetSpear, "Endurance"},
+            { Call.Type.GetSpeechcraft, "Arcane"},
+            { Call.Type.GetUnarmored, "Dexterity"},
+        };
+
         // Just some convenient/memory efficient variables
         private const string SetVigor = "SetVigor";
         private const string SetMind = "SetMind";
@@ -148,7 +189,7 @@ namespace JortPob
             { Call.Type.ModSpeechcraft, (SetArcane, .33f) },
         };
 
-        public static void Compile(ESM esm, Layout layout, MSBE msb, MainSoundBank sound, ScriptManager scriptManager, Paramanager paramanager, ItemManager itemManager, SpeffManager speffManager, BaseScript script, Papyrus papyrus, Content content, Script.Flag subscriptRunFlag = null)
+        public static void Compile(ESM esm, Layout layout, MSBE msb, MainSoundBank sound, ScriptManager scriptManager, Paramanager paramanager, NpcManager npcManager, ItemManager itemManager, SpeffManager speffManager, BaseScript script, Papyrus papyrus, Content content, Script.Flag subscriptRunFlag = null)
         {
             /* DEFINE SOME LOCAL FUNCTIONS FIRST */
 
@@ -174,6 +215,74 @@ namespace JortPob
                 script.emevd.Events.Add(timerEvt);
                 content.packageEventFlags.Add(timerEvtFlag);
                 return timerEvtFlag;
+            }
+
+            /* Created by 'Say' call, read by 'SayDone' event */
+            (Script.Flag eventFlag, Script.Flag sayFlag) CreateSayDurationEvent(Papyrus.Call call, BaseScript script, Content content, MainSoundBank.Sound sound)
+            {
+                Script.Flag sayFlag, sayEvtFlag;
+                if (content != null)
+                {
+                    sayFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.Saying, content, 0, true); // allowing phased here
+                    sayEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"SayDuration::{content.entity}");
+                }
+                else
+                {
+                    sayFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.Saying, "Player");
+                    sayEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"SayDuration::Player");
+                }
+                EMEVD.Event sayEvt = new();
+                sayEvt.ID = sayEvtFlag.id;
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"WaitFixedTimeSeconds({sound.duration});"));                            // wait duration
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"SetEventFlag(TargetEventFlagType.EventFlag, {sayFlag.id}, OFF);"));  // is done talking
+                script.emevd.Events.Add(sayEvt);
+                return (sayEvtFlag, sayFlag);
+            }
+
+            /* Created by any PlaySoundX call, read by 'GetSoundPlaying' event. */
+            (Script.Flag eventFlag, Script.Flag soundFlag) CreateSoundDurationEvent(Papyrus.Call call, BaseScript script, Content content, MainSoundBank.Sound sound)
+            {
+                Script.Flag soundFlag, soundEvtFlag;
+                if (content != null)
+                {
+                    soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"{content.entity}->{sound.record.ToLower()}");
+                    soundEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"SoundDuration::{content.entity}");
+                }
+                else
+                {
+                    soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"Player->{sound.record.ToLower()}");
+                    soundEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"SoundDuration::Player");
+                }
+                EMEVD.Event soundEvt = new();
+                soundEvt.ID = soundEvtFlag.id;
+                soundEvt.Instructions.Add(script.AUTO.ParseAdd($"WaitFixedTimeSeconds({sound.duration});"));                            // wait duration
+                soundEvt.Instructions.Add(script.AUTO.ParseAdd($"SetEventFlag(TargetEventFlagType.EventFlag, {soundFlag.id}, OFF);"));  // is done talking
+                script.emevd.Events.Add(soundEvt);
+                return (soundEvtFlag, soundFlag);
+            }
+
+            /* Created by PlayLoopSoundX call. Creates a function that plays a sound on repeat till StopSound is called on it */
+            (Script.Flag eventFlag, Script.Flag soundFlag) CreateLoopSoundEvent(Papyrus.Call call, BaseScript script, Content content, MainSoundBank.Sound sound)
+            {
+                Script.Flag soundFlag, soundEvtFlag;
+                if (content != null)
+                {
+                    soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"{content.entity}->{sound.record.ToLower()}");
+                    soundEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"LoopSound::{content.entity}");
+                }
+                else
+                {
+                    soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"Player->{sound.record.ToLower()}");
+                    soundEvtFlag = script.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"LoopSound::Player");
+                }
+                EMEVD.Event sayEvt = new();
+                sayEvt.ID = soundEvtFlag.id;
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"EndIfEventFlag(EventEndType.End, OFF, TargetEventFlagType.EventFlag, {soundFlag.id});"));   // if soundplaying is set to false then kill event and stop playing
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"PlaySE({(content!=null?content.entity:10000)}, 5, {sound.id * 10});"));                    // play sound effect
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"WaitFixedTimeSeconds({sound.duration});"));                                               // wait duration of sound
+                sayEvt.Instructions.Add(script.AUTO.ParseAdd($"EndUnconditionally(EventEndType.Restart);"));                                            // repeat
+                script.emevd.Events.Add(sayEvt);
+                return (soundEvtFlag, soundFlag);
             }
 
             // Little function to resolve a variable to a flag
@@ -385,6 +494,244 @@ namespace JortPob
                         }
                         else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
                         break;
+
+                    case Call.Type.GetStrength:
+                    case Call.Type.GetIntelligence:
+                    case Call.Type.GetWillpower:
+                    case Call.Type.GetAgility:
+                    case Call.Type.GetSpeed:
+                    case Call.Type.GetEndurance:
+                    case Call.Type.GetPersonality:
+                    case Call.Type.GetLuck:
+                    case Call.Type.GetAcrobatics:
+                    case Call.Type.GetAlchemy:
+                    case Call.Type.GetAlteration:
+                    case Call.Type.GetArmorer:
+                    case Call.Type.GetAthletics:
+                    case Call.Type.GetAxe:
+                    case Call.Type.GetBlock:
+                    case Call.Type.GetBluntWeapon:
+                    case Call.Type.GetConjuration:
+                    case Call.Type.GetDestruction:
+                    case Call.Type.GetEnchant:
+                    case Call.Type.GetHandToHand:
+                    case Call.Type.GetHeavyArmor:
+                    case Call.Type.GetIllusion:
+                    case Call.Type.GetLightArmor:
+                    case Call.Type.GetLongBlade:
+                    case Call.Type.GetMarksman:
+                    case Call.Type.GetMediumArmor:
+                    case Call.Type.GetMercantile:
+                    case Call.Type.GetMysticism:
+                    case Call.Type.GetRestoration:
+                    case Call.Type.GetSecurity:
+                    case Call.Type.GetShortBlade:
+                    case Call.Type.GetSneak:
+                    case Call.Type.GetSpear:
+                    case Call.Type.GetSpeechcraft:
+                    case Call.Type.GetUnarmored:
+                        {
+                            // Player
+                            if(call.left.target != null && call.left.target.ToLower() == "player")
+                            {
+                                Script.Flag statFlag = scriptManager.GetFlag(Script.Flag.Designation.PlayerStat, GetStatMapping[call.left.type]);
+                                if (call.right.type == Call.Type.Literal)
+                                {
+                                    lines.Add(ResetConditionGroups());
+                                    lines.Add($"IfEventValue(OR_01, {statFlag.id}, {statFlag.Bits()}, {call.OperatorIndex()}, {call.right.parameters[0]});");
+                                    lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                                }
+                                else if (call.right.type == Call.Type.Variable)
+                                {
+                                    Script.Flag lflag = GetFlagByVariable(call.right.parameters[0]);
+                                    lines.Add(ResetConditionGroups());
+                                    lines.Add($"IfCompareEventValues(OR_01, {statFlag.id}, {statFlag.Bits()}, {call.OperatorIndex()}, {lflag.id}, {lflag.Bits()});");
+                                    lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                                }
+                                else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                            }
+                            // Npc
+                            else
+                            {
+                                // Get value
+                                Content target;
+                                if(call.left.target == null) { target = content; }
+                                else { target = layout.FindScriptReference(content, call.left.target); }
+                                if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                                CharacterContent cc = target as CharacterContent; // if this casts fails it's not my fault it's bethesda's fault
+                                string stat = call.left.type.ToString()[3..]; // remove 'get' from the enum name
+                                int value;
+                                if(Enum.IsDefined(typeof(CharacterContent.Stats.Attribute), stat))
+                                {
+                                    CharacterContent.Stats.Attribute atr = Enum.Parse<CharacterContent.Stats.Attribute>(stat);
+                                    value = cc.stats.Get(atr);
+                                }
+                                else
+                                {
+                                    CharacterContent.Stats.Skill skl = Enum.Parse<CharacterContent.Stats.Skill>(stat);
+                                    value = cc.stats.Get(skl);
+                                }
+
+                                // Do comparison
+                                if (call.right.type == Call.Type.Literal)
+                                {
+                                    // Can be statically resolved since npc stats never change and the right hand value is a literal
+                                    if (call.ResolveOperator(value))
+                                    {
+                                        lines.Add($"SkipUnconditionally(0);"); // no op
+                                    }
+                                    else
+                                    {
+                                        lines.Add($"SkipUnconditionally({pass.Count()});"); // skip to else
+                                    }
+                                }
+                                else if (call.right.type == Call.Type.Variable)
+                                {
+                                    Script.Flag lflag = GetFlagByVariable(call.right.parameters[0]);
+                                    lines.Add(ResetConditionGroups());
+                                    lines.Add($"IfEventValue(OR_01, {lflag.id}, {lflag.Bits()}, {call.ReversedOperatorIndex()}, {value});");
+                                    lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                                }
+                                else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                                break;
+                            }
+                            break;
+                        }
+
+                    case Call.Type.GetPcCrimeLevel:
+                        Script.Flag clFlag = scriptManager.GetFlag(Script.Flag.Designation.CrimeLevel, "CrimeLevel");
+                        if (call.right.type == Call.Type.Literal)
+                        {
+                            lines.Add(ResetConditionGroups());
+                            lines.Add($"IfEventValue(OR_01, {clFlag.id}, {clFlag.Bits()}, {call.OperatorIndex()}, {call.right.parameters[0]});");
+                            lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                        }
+                        else if (call.right.type == Call.Type.Variable)
+                        {
+                            Script.Flag lflag = GetFlagByVariable(call.right.parameters[0]);
+                            lines.Add(ResetConditionGroups());
+                            lines.Add($"IfCompareEventValues(OR_01, {clFlag.id}, {clFlag.Bits()}, {call.OperatorIndex()}, {lflag.id}, {lflag.Bits()});");
+                            lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                        }
+                        else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                        break;
+
+                    case Call.Type.GetPcRank:
+                        {
+                            string faction;
+                            if (call.left.parameters.Count() > 0) { faction = string.Join(" ", call.left.parameters); }
+                            else
+                            {
+                                Content target;
+                                if (call.left.target != null) { target = layout.FindScriptReference(content, call.left.target); }
+                                else { target = content; }
+                                if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                                CharacterContent cc = target as CharacterContent; // if this casts fails it's not my fault it's bethesda's fault
+                                faction = cc.faction;
+                            }
+                            Script.Flag faFlag = scriptManager.GetFlag(Script.Flag.Designation.FactionRank, faction);
+                            if (call.right.type == Call.Type.Literal)
+                            {
+                                lines.Add(ResetConditionGroups());
+                                lines.Add($"IfEventValue(OR_01, {faFlag.id}, {faFlag.Bits()}, {call.OperatorIndex()}, {call.right.parameters[0]});");
+                                lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                            }
+                            else if (call.right.type == Call.Type.Variable)
+                            {
+                                Script.Flag lflag = GetFlagByVariable(call.right.parameters[0]);
+                                lines.Add(ResetConditionGroups());
+                                lines.Add($"IfCompareEventValues(OR_01, {faFlag.id}, {faFlag.Bits()}, {call.OperatorIndex()}, {lflag.id}, {lflag.Bits()});");
+                                lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                            }
+                            else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                            break;
+                        }
+
+                    case Call.Type.GetCurrentAiPackage:
+                        {
+                            // Get target and flag
+                            Content target;
+                            if (call.left.target == null) { target = content; }
+                            else { target = layout.FindScriptReference(content, call.left.target); }
+                            if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                            Script.Flag aipFlag = scriptManager.GetFlag(Script.Flag.Designation.AiPackageType, target.entity.ToString());
+
+                            // Create conditional if we find a flag for this
+                            int value = int.Parse(call.right.parameters[0]);  // cannot support variable comparision here since we have to offset the return value by 1 to make it not negative
+                            if (aipFlag != null)
+                            {
+                                if (call.right.type == Call.Type.Literal)
+                                {
+                                    lines.Add(ResetConditionGroups());
+                                    lines.Add($"IfEventValue(OR_01, {aipFlag.id}, {aipFlag.Bits()}, {call.OperatorIndex()}, {value+1});");
+                                    lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
+                                }
+                                else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                            }
+                            // In the weird edge case where the flag doesn't exist for this npcs we assume -1 (none)
+                            else
+                            {
+                                if (call.right.type == Call.Type.Literal)
+                                {
+                                    if (value == -1)
+                                    {
+                                        lines.Add($"SkipUnconditionally(0);"); // no op
+                                    }
+                                    else
+                                    {
+                                        lines.Add($"SkipUnconditionally({pass.Count()});"); // skip to else
+                                    }
+                                }
+                                else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
+                            }
+                            break;
+                        }
+
+                    case Call.Type.SayDone:
+                        {
+                            Content target;
+                            if (call.left.target == null) { target = content; }
+                            else if (call.left.target.ToLower() == "player") { target = null; }
+                            else { target = layout.FindScriptReference(content, call.left.target); }
+
+                            Script.Flag sayFlag;
+                            if(target != null)
+                            {
+                                sayFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.Saying, target);
+                            }
+                            else
+                            {
+                                sayFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.Saying, "Player");
+                            }
+
+                            bool flagState = int.Parse(call.right.parameters[0]) == 1;
+                            lines.Add($"SkipIfEventFlag({pass.Count()}, {(flagState ? "ON" : "OFF")}, TargetEventFlagType.EventFlag, {sayFlag.id});");
+                            break;
+                        }
+
+                    case Call.Type.GetSoundPlaying:
+                        {
+                            Content target;
+                            if (call.left.target == null) { target = content; }
+                            else if (call.left.target.ToLower() == "player") { target = null; }
+                            else { target = layout.FindScriptReference(content, call.left.target); }
+
+                            string se = call.left.parameters[0].ToLower();
+
+                            Script.Flag soundFlag;
+                            if (target != null)
+                            {
+                                soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"{target.entity}->{se}");
+                            }
+                            else
+                            {
+                                soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"Player->{se}");
+                            }
+
+                            bool flagState = int.Parse(call.right.parameters[0]) == 0;
+                            lines.Add($"SkipIfEventFlag({pass.Count()}, {(flagState ? "ON" : "OFF")}, TargetEventFlagType.EventFlag, {soundFlag.id});");
+                            break;
+                        }
 
                     case Call.Type.GetAiPackageDone:
                         if (call.right.type == Call.Type.Literal)
@@ -666,20 +1013,6 @@ namespace JortPob
                         else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
                         break;
 
-                    case Call.Type.GetPcRank:
-                        int rank = int.Parse(call.right.parameters[0]) + 1;  // ranks are shifted +1 in ER. rank 0 is considered "not a member"
-                        if (call.right.type == Call.Type.Literal)
-                        {
-                            // notably, this call in payrus sometimes targets the player. it is already a PC check so it's always the player but like... idk double player is just as good
-                            // additionally: some faction names have spaces in them, like "imperial cult" which means we need to join all parameters because they dont always use quotes around the calls
-                            Script.Flag fflag = scriptManager.GetFlag(Script.Flag.Designation.FactionRank, string.Join(" ",  call.left.parameters));
-                            lines.Add(ResetConditionGroups());
-                            lines.Add($"IfEventValue(OR_01, {fflag.id}, {fflag.Bits()}, {call.OperatorIndex()}, {rank});");
-                            lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
-                        }
-                        else { Lort.Log($"## BAD CONDITIONAL ## {papyrus.id}->{call.type} [{call.left.type} ? {call.right.type}]", Lort.Type.Debug); }
-                        break;
-
                     case Call.Type.GetItemCount:
                         // Checking players gold specifically
                         if (call.left.target == "player" && call.left.parameters[0] == "gold_001")
@@ -722,12 +1055,100 @@ namespace JortPob
                                 lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, OR_01);");
                             }
                         }
-                        // Checking if a non player character has gold or an item, we will simply assume true here because npcs don't have inventories in ER and assuming true is probably mostly fine
+                        // Checking an npc or containers inventory for the given item id. Handling gold as an item here
                         else
                         {
-                            lines.Add($"SkipUnconditionally(0);"); // this is effectively a do nothing command to put in the spot of the if statment. effectively if(true)
+                            // Paramys
+                            string idToFind = call.left.parameters[0];
+                            int amount = int.Parse(call.right.parameters[0]);
+
+                            // Get target
+                            Content target;
+                            if (call.left.target == null) { target = content; }
+                            else { target = layout.FindScriptReference(content, call.left.target); }
+                            if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                            ItemManager.InventoryInfo invInfo;
+                            List<(string id, int quantity)> inv;
+                            List<(string id, int quantity, bool initial)> flex;
+                            if(target is CharacterContent chc)
+                            {
+                                invInfo = chc.inventoryInfo;
+                                inv = chc.inventory;
+                                flex = chc.flex;
+                            }
+                            else if(target is ContainerContent coc)
+                            {
+                                invInfo = coc.inventoryInfo;
+                                inv = coc.inventory;
+                                flex = coc.flex;
+                            }
+                            else { throw new Exception($"Invalid target type for GetItemCount call: '{call.RAW}'"); }
+
+                            // First check if flex inventory has data for this item
+                            if (flex.Any(i => i.id == idToFind))
+                            {
+                                // We determine whether or not the items in the npcs flex inventory would change the result of the given comparison
+                                int fixedAmount = inv.FirstOrDefault(i => i.id == idToFind).quantity;
+                                int flexAmount = flex.FirstOrDefault(i => i.id == idToFind).quantity;
+                                if (call.ResolveOperator(fixedAmount) != call.ResolveOperator(fixedAmount + flexAmount))
+                                {
+                                    // In the case where the flex inventory would change the result we simply check if the flex items are present or not for the conditional
+                                    string flagState = call.ResolveOperator(fixedAmount) ? "OFF" : "ON"; // if operator resolves true from our baseline fixed inv then the flex added would be the opposite. so this is the correct orientation (i think lol)
+                                    Script.Flag flexFlag = invInfo.GetFlexFlag(idToFind); // 100% should exist, if not then i blame obama
+                                    lines.Add($"SkipIfEventFlag({pass.Count()}, {flagState}, TargetEventFlagType.EventFlag, {flexFlag.id});");
+                                    break;
+                                }
+                            }
+                            // If the above case failed because no flex inv exists or there wasn't enough of the given item in the flex to matter, then we static resolve from the fixed inv
+                            // This handles both cases where the item we are getting count for is in the fixed inventory and if the item is entirely not present in this 
+                            int hasAmount = inv.FirstOrDefault(i => i.id == idToFind).quantity; // returns 0 if item is not present at all
+                            // Quantity of item in fixed inventory satisfys conditional
+                            if (call.ResolveOperator(hasAmount))
+                            {
+                                lines.Add($"SkipUnconditionally(0);"); // if (true)
+                            }
+                            // The opposite of what i said above
+                            else
+                            {
+                                lines.Add($"SkipUnconditionally({pass.Count()});"); // if (false)
+                            }
+                            break;
                         }
                         break;
+
+                    case Call.Type.HasSoulGem:
+                        {
+                            // only player is supported
+                            if (call.left.target != null && call.left.target.ToLower() == "player")
+                            {
+                                // get stuff we need to do a comparison
+                                Script.Flag dcFlag = scriptManager.GetFlag(Script.Flag.Designation.DeadCount, call.left.parameters[0]);
+                                Record record = esm.FindRecordById(call.left.parameters[0]);
+                                int soulSize = record.json["data"]["soul"].GetValue<int>();
+                                ItemManager.SoulGem soulGem = ItemManager.SoulGem.Misc_SoulGem_Azura;
+                                foreach (ItemManager.SoulGem sg in Enum.GetValues<ItemManager.SoulGem>())
+                                {
+                                    if (soulSize <= (int)sg) { soulGem = sg; break; }
+                                }
+                                ItemManager.ItemInfo itemInfo = itemManager.GetItem(soulGem.ToString());
+                                if (itemInfo == null) { throw new Exception($"Failed to get ItemInfo for HasSoulGem '{soulGem}'"); }
+                                if (dcFlag == null) { Lort.Log($"Failed to get DeadCount Flag for HasSoulGem '{call.RAW}'", Lort.Type.Debug); break; }
+                                Script.Flag itemCountFlag = scriptManager.common.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Byte, Script.Flag.Designation.PlayerItemCount, itemInfo.id);
+
+                                // so comparison on values
+                                lines.Add(ResetConditionGroups());
+                                lines.Add($"StoreItemAmountHeldInEventValue({itemInfo.EquipType()}, {itemInfo.row}, {itemCountFlag.id}, {itemCountFlag.Bits()});"); // Get item count and store in flag
+                                if (call.right.type == Call.Type.Literal)
+                                {
+                                    lines.Add($"IfEventValue(AND_01, {itemCountFlag.id}, {itemCountFlag.Bits()}, {call.OperatorIndex()}, {call.right.parameters[0]});"); // compare count of soul gem to amount in if conditional (base game this is always just '> 0')
+                                    lines.Add($"IfEventValue(AND_01, {dcFlag.id}, {dcFlag.Bits()}, 2, 0);");  // deadcount of creature id is greater than zero
+                                    lines.Add($"SkipIfConditionGroupStateUncompiled({pass.Count()}, FAIL, AND_01);");
+                                }
+                                else { throw new Exception($"Variable comparision on HasSoulGem is not supported because I don't want to. '{call.RAW}'"); }
+                            }
+                            else { throw new Exception($"HasSoulGem only support player as target. '{call.RAW}'"); }
+                            break;
+                        }
 
                     case Call.Type.Xbox:
                         if (call.right.type == Call.Type.Literal)
@@ -775,7 +1196,7 @@ namespace JortPob
                                 {
                                     if (isNoContext) { subscriptRunFlag = targetScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.RunSubscript, $"Global->{subscript.id}"); }
                                     else { subscriptRunFlag = targetScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.RunSubscript, $"{target.entity}->{subscript.id}"); }
-                                    PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, itemManager, speffManager, targetScript, subscript, target, subscriptRunFlag);
+                                    PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, npcManager, itemManager, speffManager, targetScript, subscript, target, subscriptRunFlag);
                                 }
 
                                 // Finally we create an if condition based off the value of the subscript run flag
@@ -887,6 +1308,93 @@ namespace JortPob
                                         lines.Add($"EventValueOperation({tempFlag.id}, {tempFlag.Bits()}, 0, {gspFlag.id}, {gspFlag.Bits()}, {GetEventValueOperator(operation.op)});");
                                         lines.Add($"EventValueOperation({gspFlag.id}, {gspFlag.Bits()}, 0, 0, 1, 5);"); // reset value after reading it
                                         break;
+                                    case Call.Type.GetPcCrimeLevel:
+                                        Script.Flag clFlag = scriptManager.GetFlag(Script.Flag.Designation.CrimeLevel, "CrimeLevel");
+                                        lines.Add($"EventValueOperation({tempFlag.id}, {tempFlag.Bits()}, 0, {clFlag.id}, {clFlag.Bits()}, {GetEventValueOperator(operation.op)});");
+                                        break;
+                                    case Call.Type.GetPcRank:
+                                        string faction;
+                                        if(operation.call.parameters.Count() > 0) { faction = faction = string.Join(" ", operation.call.parameters); }
+                                        else
+                                        {
+                                            Content target;
+                                            if (operation.call.target != null) { target = layout.FindScriptReference(content, operation.call.target); }
+                                            else { target = content; }
+                                            if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                                            CharacterContent cc = target as CharacterContent; // if this casts fails it's not my fault it's bethesda's fault
+                                            faction = cc.faction;
+                                        }
+                                        Script.Flag faFlag = scriptManager.GetFlag(Script.Flag.Designation.FactionRank, faction);
+                                        lines.Add($"EventValueOperation({tempFlag.id}, {tempFlag.Bits()}, 0, {faFlag.id}, {faFlag.Bits()}, {GetEventValueOperator(operation.op)});");
+                                        break;
+                                    case Call.Type.GetStrength:
+                                    case Call.Type.GetIntelligence:
+                                    case Call.Type.GetWillpower:
+                                    case Call.Type.GetAgility:
+                                    case Call.Type.GetSpeed:
+                                    case Call.Type.GetEndurance:
+                                    case Call.Type.GetPersonality:
+                                    case Call.Type.GetLuck:
+                                    case Call.Type.GetAcrobatics:
+                                    case Call.Type.GetAlchemy:
+                                    case Call.Type.GetAlteration:
+                                    case Call.Type.GetArmorer:
+                                    case Call.Type.GetAthletics:
+                                    case Call.Type.GetAxe:
+                                    case Call.Type.GetBlock:
+                                    case Call.Type.GetBluntWeapon:
+                                    case Call.Type.GetConjuration:
+                                    case Call.Type.GetDestruction:
+                                    case Call.Type.GetEnchant:
+                                    case Call.Type.GetHandToHand:
+                                    case Call.Type.GetHeavyArmor:
+                                    case Call.Type.GetIllusion:
+                                    case Call.Type.GetLightArmor:
+                                    case Call.Type.GetLongBlade:
+                                    case Call.Type.GetMarksman:
+                                    case Call.Type.GetMediumArmor:
+                                    case Call.Type.GetMercantile:
+                                    case Call.Type.GetMysticism:
+                                    case Call.Type.GetRestoration:
+                                    case Call.Type.GetSecurity:
+                                    case Call.Type.GetShortBlade:
+                                    case Call.Type.GetSneak:
+                                    case Call.Type.GetSpear:
+                                    case Call.Type.GetSpeechcraft:
+                                    case Call.Type.GetUnarmored:
+                                        {
+                                            // Player stats
+                                            if(operation.call.target != null && operation.call.target.ToLower() == "player")
+                                            {
+                                                Script.Flag statFlag = scriptManager.GetFlag(Script.Flag.Designation.PlayerStat, GetStatMapping[operation.call.type]);
+                                                lines.Add($"EventValueOperation({tempFlag.id}, {tempFlag.Bits()}, 0, {statFlag.id}, {statFlag.Bits()}, {GetEventValueOperator(operation.op)});");
+                                            }
+                                            // Npc Stats
+                                            else
+                                            {
+                                                // Get value from npcs stats
+                                                Content target;
+                                                if (operation.call.target == null) { target = content; }
+                                                else { target = layout.FindScriptReference(content, operation.call.target); }
+                                                if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+                                                CharacterContent cc = target as CharacterContent; // if this casts fails it's not my fault it's bethesda's fault
+                                                string stat = operation.call.type.ToString()[3..]; // remove 'get' from the enum name
+                                                int value;
+                                                if (Enum.IsDefined(typeof(CharacterContent.Stats.Attribute), stat))
+                                                {
+                                                    CharacterContent.Stats.Attribute atr = Enum.Parse<CharacterContent.Stats.Attribute>(stat);
+                                                    value = cc.stats.Get(atr);
+                                                }
+                                                else
+                                                {
+                                                    CharacterContent.Stats.Skill skl = Enum.Parse<CharacterContent.Stats.Skill>(stat);
+                                                    value = cc.stats.Get(skl);
+                                                }
+                                                // Apply value
+                                                lines.Add($"EventValueOperation({tempFlag.id}, {tempFlag.Bits()}, {value}, 0, 1, {GetEventValueOperator(operation.op)});");
+                                            }
+                                        }
+                                        break;
                                     default: if (!UNSUPPORTED_SET_LIST.Contains(operation.call.type)) { Lort.Log($" ## WARNING ## Unsupported Papyrus->EMEVD set operation call {papyrus.id}->{call.type}->{operation.call.type}", Lort.Type.Debug); UNSUPPORTED_SET_LIST.Add(operation.call.type); }
                                         break;
                                 }
@@ -962,7 +1470,7 @@ namespace JortPob
                             {
                                 if (position != Vector3.Zero)
                                 {
-                                    Layout.TravelPoint goal = layout.FindTravelable(location, position);
+                                    Layout.TravelPoint goal = layout.FindTravelable(target, position);
                                     if (goal != null)
                                     {
                                         uint defaultId = target.packageDefaultFlag != null ? target.packageDefaultFlag.id : 0;
@@ -975,6 +1483,8 @@ namespace JortPob
                             else { Lort.Log($"AiFollow goal was determined unreacahable by interior cell traversal: '{call.RAW}'", Lort.Type.Debug); }
 
                             // Follow stuff
+                            Script.Flag packTypeFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+                            evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Follow}, 0, 1, 5);"));
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"SetSpEffect({target.entity}, {(int)SpeffManager.Functional.NpcFollow});"));   // apply speff for follower
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"WaitFixedTimeFrames(15);"));                                                 // wait half a second~
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EndUnconditionally(EventEndType.Restart);"));                               // repeat endlessly
@@ -1002,19 +1512,23 @@ namespace JortPob
                             Script.Flag doneFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.AiPackageDone, target, 0, true);
                             Script.Flag switchFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.SwitchAiPackage, target.entity.ToString());  // purposefully avoid phased rerouting for this eventid flag
 
-                            // Get patrol route
+                            // Get location we are traveling to
                             Layout.TravelPoint tp = layout.FindTravelable(target, position);
                             if (tp == null) { break; } // partial build result, or travel point was in a differnt msb so we can't ref it in a patrol
 
+                            // Create patrol route and inject into targets parent msb
+                            MSBE targetMsb = layout.FindLayout(target).msb;
                             MSBE.Event.PatrolInfo patrol = MakePart.PatrolTo(tp);
                             patrol.EntityID = areaScript.CreateEntity(Script.EntityType.Event, $"Goto->{patrol.Name}");
-                            msb.Events.Add(patrol);
+                            targetMsb.Events.Add(patrol);
 
                             // Create an event to act as this scripted AiPackage
                             Script.Flag evtFlag = areaScript.CreateFlag(Script.Flag.Category.Event, Script.Flag.Type.Bit, Script.Flag.Designation.Event, $"AiPackage::{call.type}::{target.entity}");
                             EMEVD.Event evt = new();
                             evt.ID = evtFlag.id;
                             uint defaultId = target.packageDefaultFlag != null ? target.packageDefaultFlag.id : 0;
+                            Script.Flag packTypeFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+                            evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Travel}, 0, 1, 5);"));
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));                      // set route for them to travel
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                             // request replan to get their brain actually working
                             evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfInoutsideArea(MAIN, InsideOutsideState.Inside, {target.entity}, {tp.entity}, 1);"));    // blocking wait till they reach the destination
@@ -1044,7 +1558,7 @@ namespace JortPob
                             BaseScript areaScript = scriptManager.FindScriptFor(layout, target);
                             Script.Flag doneFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.AiPackageDone, target, 0, true);
 
-                            // Get patrol route
+                            // Get pathgrid points we can use as our patrols route
                             List<Layout.PathGridPoint> paths = layout.GetWanderable(target, distance);
                             paths.Shuffle();                                            // randomize
                             if (paths.Count() > 15) { paths = paths.GetRange(0, 15); } // truncate to max size of nibble (not strictly needed here but eh, we dont need more than this i swear)
@@ -1061,18 +1575,24 @@ namespace JortPob
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"InitializeEvent(0, {timerFlag.id}, 0);"));  // start timer
                             }
 
+                            // Grab package type flag so we can assign it whatever below
+                            Script.Flag packTypeFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+
                             // 'Do nothing' wander with 0 distance
                             if (distance <= 0)
                             {
+                                evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.None}, 0, 1, 5);"));
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, 6000);"));               // Wait forever
                             }
                             // Regular wander but no pathgrid so just improvise with type 6 patrol "Randomly wander around"
                             else if(paths.Count() <= 0)
                             {
+                                MSBE targetMsb = layout.FindLayout(target).msb;
                                 MSBE.Event.PatrolInfo patrol = MakePart.PatrolRandom();
                                 patrol.EntityID = areaScript.CreateEntity(Script.EntityType.Event, $"Random->{patrol.Name}");
-                                msb.Events.Add(patrol);
+                                targetMsb.Events.Add(patrol);
 
+                                evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Wander}, 0, 1, 5);"));
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));          // set route to "wander randomly"
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                 // brain go boom
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, 6000);"));               // Wait forever                      
@@ -1082,10 +1602,12 @@ namespace JortPob
                             {
                                 foreach (Layout.PathGridPoint path in paths)
                                 {
+                                    MSBE targetMsb = layout.FindLayout(target).msb;
                                     MSBE.Event.PatrolInfo patrol = MakePart.PatrolTo(path);
                                     patrol.EntityID = areaScript.CreateEntity(Script.EntityType.Event, $"Goto->{patrol.Name}");
-                                    msb.Events.Add(patrol);
+                                    targetMsb.Events.Add(patrol);
 
+                                    evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Wander}, 0, 1, 5);"));
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"WaitRandomTimeSeconds(1, 12);"));                                                                // wait around for a bit
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));                          // set route to next wander position
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                                 // request replan to kickstart npcs brain
@@ -1150,6 +1672,25 @@ namespace JortPob
                                 {
                                     lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {spell.flag.id}, OFF);");
                                 }
+                            }
+                            break;
+                        }
+
+                    case Call.Type.RemoveSoulGem:
+                        {
+                            // only player is supported
+                            if (call.target == "player")
+                            {
+                                Record record = esm.FindRecordById(call.parameters[0]);
+                                int soulSize = record.json["data"]["soul"].GetValue<int>();
+                                ItemManager.SoulGem soulGem = ItemManager.SoulGem.Misc_SoulGem_Azura;
+                                foreach(ItemManager.SoulGem sg in Enum.GetValues<ItemManager.SoulGem>())
+                                {
+                                    if(soulSize <= (int)sg) { soulGem = sg; break; }
+                                }
+                                ItemManager.ItemInfo itemInfo = itemManager.GetItem(soulGem.ToString());
+                                if (itemInfo == null) { throw new Exception($"Failed to get ItemInfo for RemoveSoulGem '{soulGem}'"); }
+                                lines.Add($"RemoveItemFromPlayer({(int)itemInfo.type}, {itemInfo.row}, 1);");
                             }
                             break;
                         }
@@ -1743,21 +2284,23 @@ namespace JortPob
 
                     case Call.Type.Say:
                         {
-                            string id = call.parameters[0].ToLower().Replace("\\", "_").Replace("/", "_").Replace(".mp3", "");
+                            string id = call.parameters[0].ToLower().Replace("\\", "_").Replace("/", "_").Replace(".mp3", "").Replace(".wav", "");
                             string file = Path.Combine(Const.MORROWIND_PATH, @"Data Files\sound", call.parameters[0]);
-                            int playId = sound.AddSound(id, MainSoundBank.Sound.Type.Voice, false, true, 1f, 1f, file);
+                            MainSoundBank.Sound se = sound.AddSound(id, MainSoundBank.Sound.Type.Voice, false, true, 1f, 1f, file);
+                            if(se == null) { Lort.Log($"Failed to get sound for 'Say' command '{call.RAW}'", Lort.Type.Debug); break; }
 
-                            uint entityId;
-                            if(call.target == null) { entityId = content.entity; }                       // case 1: no target so current object is target
-                            else if (call.target == "player") { entityId = 10000; }                      // case 2: target is player
-                            else                                                                         // case 3: target is a direct reference to an object record
-                            {
-                                Content speaker = layout.FindScriptReference(content, call.target);
-                                if (speaker == null) { break; } // failed to find speaker for this line, should only happen in a partial build
-                                entityId = speaker.entity;
-                            }
+                            Content target;
+                            if (call.target == null) { target = content; }
+                            else if (call.target.ToLower() == "player") { target = null; }
+                            else { target = layout.FindScriptReference(content, call.target); }
 
-                            lines.Add($"PlaySE({entityId}, 7, {playId * 10});");  // 7 is "Voice"
+                            // Create an async event that waits the duration of the line playback then sets a flag for the "SayDone" call to read from. these are per actor not per line
+                            (Script.Flag eventFlag, Script.Flag sayFlag) flags = CreateSayDurationEvent(call, script, target, se);
+
+                            // Play SE and start that event
+                            lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {flags.sayFlag.id}, ON);");
+                            lines.Add($"InitializeEvent(0, {flags.eventFlag.id}, 0);");
+                            lines.Add($"PlaySE({(target!=null?target.entity:10000)}, 7, {se.id * 10});");  // 7 is "Voice"
                             break;
                         }
 
@@ -1840,10 +2383,161 @@ namespace JortPob
                             else { targetId = 10000; }
 
                             // Add sound to main bank and get playback id
-                            int seId = sound.AddSound(info.id, MainSoundBank.Sound.Type.SFX, loop, spatialize, volume, pitch, file);
+                            MainSoundBank.Sound se = sound.AddSound(info.id, MainSoundBank.Sound.Type.SFX, loop, spatialize, volume, pitch, file);
+                            if (se == null) { Lort.Log($"Failed to get sound for 'PlaySoundX' command '{call.RAW}'", Lort.Type.Debug); break; }
 
-                            // Play SE call
-                            lines.Add($"PlaySE({targetId}, 5, {seId});");
+                            // Loopy
+                            if(loop)
+                            {
+                                // Create event that plays the sound and then waits and plays again until stopped. then start that event
+                                (Script.Flag eventFlag, Script.Flag soundFlag) flags = CreateLoopSoundEvent(call, script, target, se);
+                                lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {flags.soundFlag.id}, ON);");
+                                lines.Add($"InitializeEvent(0, {flags.eventFlag.id}, 0);");
+                            }
+                            // One shot sound effect
+                            else
+                            {
+                                // Create an async event that waits the duration of the sound playback then sets a flag for the "GetSoundPlaying" call to read from.
+                                (Script.Flag eventFlag, Script.Flag soundFlag) flags = CreateSoundDurationEvent(call, script, target, se);
+
+                                // Play SE and start that event
+                                lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {flags.soundFlag.id}, ON);");
+                                lines.Add($"InitializeEvent(0, {flags.eventFlag.id}, 0);");
+                                lines.Add($"PlaySE({targetId}, 5, {se.id * 10});");
+                            }
+                            break;
+                        }
+
+                    case Call.Type.StopSound:
+                        {
+                            // grab record from esm
+                            SoundInfo info = esm.GetSound(call.parameters[0].ToLower().Trim());
+
+                            // find our target content
+                            Content target;
+                            if (call.target == null) { target = content; }
+                            else { target = layout.FindScriptReference(content, call.target); }
+                            if (target == null) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                            // Add sound to main bank and get playback id
+                            MainSoundBank.Sound se = sound.GetSound(info.id, MainSoundBank.Sound.Type.SFX);
+                            if (se == null) { Lort.Log($"Failed to get sound for 'StopSound' command '{call.RAW}'", Lort.Type.Debug); break; }
+
+                            // Grab "sound playing" flag for sfx
+                            Script.Flag soundFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.SoundPlaying, $"{content.id}->{info.id.ToLower()}");
+
+                            // Set to false so it stops playing
+                            lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {soundFlag.id}, OFF);");
+                            break;
+                        }
+
+                    case Call.Type.ForceGreeting:
+                        {
+                            // find our target content
+                            Content t;
+                            if (call.target == null) { t = content; }
+                            else { t = layout.FindScriptReference(content, call.target); }
+                            if (t == null || t is not CharacterContent target) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                            Script.Flag forceFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.ForceGreet, target);
+                            lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {forceFlag.id}, ON);");
+                            break;
+                        }
+
+                    case Call.Type.PlaceAtPc:
+                        {
+                            // Get source for this placeatpc
+                            Content source = content;
+                            if (source == null) { break; } // cannot do placeatpc unless the script source is a game object
+
+                            // create an object at that sources location
+                            Record record = esm.FindRecordById(call.parameters[0]);
+                            if(record.type != ESM.Type.Creature && record.type != ESM.Type.Npc) { Lort.Log($"PlaceAtPc does not support {record.type} currently - {call.RAW}", Lort.Type.Debug); break; }
+                            BaseScript script = scriptManager.FindScriptFor(layout, source);
+                            CharacterContent inject = null;
+                            JsonNode fakeJson = new JsonObject
+                            {
+                                ["id"] = record.json["id"].GetValue<string>(),
+                                ["translation"] = new JsonArray { source.position.X, source.position.Z, source.position.Y }, // flipping these as the constructor for Content will flip them back
+                                ["rotation"] = new JsonArray { 0, 0, 0 },
+                            };
+
+                            // Find root partname if needed
+                            string rootCollision = null;
+                            foreach(MSBE.Part.Enemy e in msb.Parts.Enemies)
+                            {
+                                if (e.EntityID == source.entity) { rootCollision = e.CollisionPartName; break; }
+                            }
+                            foreach (MSBE.Part.Asset a in msb.Parts.Assets)
+                            {
+                                if (a.EntityID == source.entity) { rootCollision = a.UnkPartNames[1]; break; }
+                            }
+
+                            // Inject if creature
+                            if (record.type == ESM.Type.Creature)
+                            {
+                                inject = new CreatureContent(esm, source.cell, fakeJson, record);
+                                inject.entity = script.CreateEntity(Script.EntityType.Enemy, $"PlaceAtPc-> {inject.id}");
+
+                                Override.EnemyRemap remap = Override.GetEnemyRemap(inject.id);
+
+                                MSBE.Part.Enemy enemy = MakePart.Creature(remap.character);
+                                enemy.Position = source.relative + Const.MSB_OFFSET; // copy position from source object
+                                enemy.Rotation = inject.rotation;
+
+                                if (rootCollision != null)
+                                {
+                                    enemy.Unk1.DisplayGroups[0] = 0;
+                                    enemy.CollisionPartName = rootCollision;
+                                }
+
+                                /* Resolve this creatures inventory */
+                                itemManager.ResolveInventory(inject as CreatureContent);
+
+                                (int npc, int think, int init) paramRows = npcManager.GetParams(itemManager, script, inject as CreatureContent, remap); // creates/gets and returns NpcParam, NpcThinkParam, and CharInitParam
+                                enemy.NPCParamID = paramRows.npc;
+                                enemy.ThinkParamID = paramRows.think;
+                                enemy.CharaInitID = paramRows.init;
+
+                                enemy.EntityID = inject.entity;
+
+                                /* Add to msb */
+                                msb.Parts.Enemies.Add(enemy);
+                            }
+
+                            // Inject if npc
+                            else if (record.type == ESM.Type.Npc)
+                            {
+                                inject = new NpcContent(esm, source.cell, fakeJson, record);
+                                inject.entity = script.CreateEntity(Script.EntityType.Enemy, $"PlaceAtPc-> {inject.id}");
+
+                                MSBE.Part.Enemy enemy = MakePart.Npc();
+                                enemy.Position = source.relative + Const.MSB_OFFSET; // copy position from source object
+                                enemy.Rotation = inject.rotation;
+
+                                if (rootCollision != null)
+                                {
+                                    enemy.Unk1.DisplayGroups[0] = 0;
+                                    enemy.CollisionPartName = rootCollision;
+                                }
+
+                                /* Resolve this creatures inventory */
+                                itemManager.ResolveInventory(inject as NpcContent);
+
+                                (int npc, int think, int init) paramRows = npcManager.GetParams(itemManager, script, inject as NpcContent); // creates/gets and returns NpcParam, NpcThinkParam, and CharInitParam
+                                enemy.NPCParamID = paramRows.npc;
+                                enemy.ThinkParamID = paramRows.think;
+                                enemy.CharaInitID = paramRows.init;
+
+                                enemy.EntityID = inject.entity;
+
+                                /* Add to msb */
+                                msb.Parts.Enemies.Add(enemy);
+                            }
+
+                            // Register PlaceAtPc call with script and get our triggering flag, and set that trigger when this call happens
+                            Script.Flag papcFlag = script.RegisterPlaceAtPc(inject.entity);
+                            lines.Add($"SetEventFlag(TargetEventFlagType.EventFlag, {papcFlag.id}, ON);");
                             break;
                         }
 
@@ -2111,7 +2805,7 @@ namespace JortPob
                             {
                                 if (isNoContext) { subscriptRunFlag = targetScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.RunSubscript, $"Global->{subscript.id}"); }
                                 else { subscriptRunFlag = targetScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.RunSubscript, $"{target.entity}->{subscript.id}"); }
-                                PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, itemManager, speffManager, targetScript, subscript, target, subscriptRunFlag);
+                                PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, npcManager, itemManager, speffManager, targetScript, subscript, target, subscriptRunFlag);
                             }
 
                             // Finally we just add some code here to start/stop the subscript

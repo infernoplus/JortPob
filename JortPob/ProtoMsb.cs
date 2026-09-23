@@ -12,6 +12,8 @@ namespace JortPob
         int block { get; }
         int[] IdList();
 
+        SoulsFormats.MSBE msb { get; set; }
+
         bool IsEmpty { get; }
         bool IsInterior { get; }
 

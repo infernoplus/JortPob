@@ -234,7 +234,7 @@ namespace JortPob
 
             BaseScript areaScript = scriptManager.GetScript(msbIdList[0], msbIdList[1], msbIdList[2], msbIdList[3]); // get area script for this npc
 
-            DialogESD dialogEsd = new(esm, layout, msb, soundManager.main, scriptManager, paramanager, textManager, itemManager, speffManager, areaScript, (uint)esdId, content, data);
+            DialogESD dialogEsd = new(esm, layout, msb, soundManager.main, scriptManager, paramanager, this, textManager, itemManager, speffManager, areaScript, (uint)esdId, content, data);
             string pyPath = Path.Combine(Const.CACHE_PATH, "esd", $"t{esdId:D9}.py");
             string esdPath = Path.Combine(Const.CACHE_PATH, "esd", $"t{esdId:D9}.esd");
             dialogEsd.Write(pyPath);
@@ -243,6 +243,12 @@ namespace JortPob
             esds.Add(esdInfo);
 
             return esdId;
+        }
+
+        // Values for GetCurrentAIPackage papyrus call. These are offset by +1 as morrowind uses -1 for none which is silly
+        public enum AiPackageType
+        {
+            None = 0, Wander = 1, Travel = 2, Escort = 3, Follow = 4, Activate = 5
         }
 
         /* Setup a default ai package for an character */
@@ -273,6 +279,7 @@ namespace JortPob
 
             // Create flag for package index
             Script.Flag packageFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackage, content.entity.ToString());  // purposefully avoid phased rerouting
+            Script.Flag packTypeFlag = script.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, content.entity.ToString());  // same
             List<string> code = new();
 
             // Generate emevd code
@@ -285,6 +292,7 @@ namespace JortPob
                     // This is the "DO NOTHING" package
                     if (package.duration <= 0)
                     {
+                        code.Add($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.None}, 0, 1, 5);");
                         code.Add($"EndUnconditionally(EventEndType.End);");  // do nothing forever!
                     }
                     // If our DO NOTHING package has a duration we need some code to wait till its done
@@ -324,6 +332,7 @@ namespace JortPob
                         scope.Add($"InitializeEvent(0, {timerEvtFlag.id}, 0);");
                     }
 
+                    scope.Add($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Wander}, 0, 1, 5);");
                     scope.Add($"WaitRandomTimeSeconds(0, 3);");    // chill for a bit between wandering around
 
                     // Regular wander but no pathgrid so just improvise with type 6 patrol "Randomly wander around"
@@ -385,6 +394,7 @@ namespace JortPob
                     patrol.EntityID = script.CreateEntity(Script.EntityType.Event, $"Goto->{patrol.Name}");
                     msb.Events.Add(patrol);
 
+                    scope.Add($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Travel}, 0, 1, 5);");
                     scope.Add($"ChangeCharacterPatrolBehavior({content.entity}, {patrol.EntityID})");                      // move to travel position
                     scope.Add($"RequestCharacterAIReplan({content.entity});");                                            // replan request to make pathing not stupid
                     scope.Add($"IfInoutsideArea(MAIN, InsideOutsideState.Inside, {content.entity}, {tp.entity}, 1);");   // block until arrived at location
@@ -406,7 +416,8 @@ namespace JortPob
                         Script.Flag timerEvtFlag = CreateDurationEvent(packageFlag, i, duration);
                         scope.Add($"InitializeEvent(0, {timerEvtFlag.id}, 0);");
                     }
-                    
+
+                    scope.Add($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)AiPackageType.Follow}, 0, 1, 5);");
                     scope.Add($"SetSpEffect({content.entity}, {(int)SpeffManager.Functional.NpcFollow});");     // add follower SPEFF to character
 
                     code.Add($"IfElapsedSeconds(MAIN, 0);");                                              // reset conditions groups

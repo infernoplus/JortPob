@@ -16,6 +16,8 @@ namespace JortPob
         public int unk { get; init; } = u;
         public int block { get; init; } = b;
 
+        public SoulsFormats.MSBE msb { get; set; }
+
         public readonly List<Chunk> chunks = [];
 
         public Int2 coordinate

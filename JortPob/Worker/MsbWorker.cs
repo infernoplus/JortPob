@@ -1,9 +1,10 @@
-﻿using System;
+﻿using JortPob.Common;
+using PortJob;
+using SoulsFormats;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using JortPob.Common;
-using SoulsFormats;
 
 namespace JortPob.Worker
 {
@@ -22,9 +23,14 @@ namespace JortPob.Worker
         {
             ExitCode = 1;
 
+            /* Do auto resource before we write msb (was moved here since PlaceAtPc can change resouces during script compiling) */
+            AutoResource.Generate(pool.id[0], pool.id[1], pool.id[2], pool.id[3], pool.msb);
+
+            /* Some names and ids */
             string map = $"{pool.id[0].ToString("D2")}";
             string name = $"{pool.id[0].ToString("D2")}_{pool.id[1].ToString("D2")}_{pool.id[2].ToString("D2")}_{pool.id[3].ToString("D2")}";
 
+            /* Write msb and btl */
             pool.msb.Write(Path.Combine(Const.OUTPUT_PATH, $@"map\mapstudio\m{name}.msb.dcx"));
             if (pool.lights.Count() > 0) { pool.lights.Write(); }
 

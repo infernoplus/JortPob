@@ -18,6 +18,7 @@ namespace JortPob
         private readonly MainSoundBank sound;
         private readonly ScriptManager scriptManager;
         private readonly Paramanager paramanager;
+        private readonly NpcManager npcManager;
         private readonly TextManager textManager;
         private readonly ItemManager itemManager;
         private readonly SpeffManager speffManager;
@@ -29,7 +30,7 @@ namespace JortPob
         private readonly Dictionary<NpcManager.TopicData.TalkData, int> choiceMap; // this is a fix for recursive choices. if we generate a choice and another dialog refs it we return the id of the alraedy gen'd one
         private int nxtGenStateId;
 
-        public DialogESD(ESM esm, Layout layout, SoulsFormats.MSBE msb, MainSoundBank sound, ScriptManager scriptManager, Paramanager paramanager, TextManager textManager, ItemManager itemManager, SpeffManager speffManager, BaseScript areaScript, uint id, CharacterContent npcContent, List<NpcManager.TopicData> topicData)
+        public DialogESD(ESM esm, Layout layout, SoulsFormats.MSBE msb, MainSoundBank sound, ScriptManager scriptManager, Paramanager paramanager, NpcManager npcManager, TextManager textManager, ItemManager itemManager, SpeffManager speffManager, BaseScript areaScript, uint id, CharacterContent npcContent, List<NpcManager.TopicData> topicData)
         {
             this.esm = esm;
             this.layout = layout;
@@ -39,6 +40,7 @@ namespace JortPob
             this.speffManager = speffManager;
             this.scriptManager = scriptManager;
             this.paramanager = paramanager;
+            this.npcManager = npcManager;
             this.textManager = textManager;
             this.areaScript = areaScript;
             this.npcContent = npcContent;
@@ -260,6 +262,7 @@ namespace JortPob
             Script.Flag playerIsSneaking = scriptManager.GetFlag(Script.Flag.Designation.PlayerIsSneaking, "PlayerIsSneaking");
             Script.Flag pickpocketedFlag = scriptManager.GetFlag(Script.Flag.Designation.Pickpocketed, npcContent);
             Script.Flag guardTalkingFlag = scriptManager.GetFlag(Script.Flag.Designation.GuardIsGreeting, "GuardIsGreeting");
+            Script.Flag forceFlag = scriptManager.GetFlag(Script.Flag.Designation.ForceGreet, npcContent);
             string actionButtonCheck;
             if(npcContent.IsGuard()) { actionButtonCheck = $"CheckActionButtonArea(actionbutton1) or (GetDistanceToPlayer() < 4 and GetEventFlagValue({crimeLevel.id}, {crimeLevel.Bits()}) >= 1) and (not GetEventFlag({guardTalkingFlag.id}))"; }
             else { actionButtonCheck = $"CheckActionButtonArea(actionbutton1)"; }
@@ -279,14 +282,18 @@ namespace JortPob
                                 """State 4"""
                                 assert not GetEventFlag(flag9)
                                 """State 2"""
+                                # papyrus force greeting flag check
+                                if GetEventFlag({forceFlag.id}) and (not GetOneLineHelpStatus() and not IsClientPlayer() and not IsPlayerDead() and not IsCharacterDisabled()):
+                                    SetEventFlag({forceFlag.id}, FlagState.Off)
+                                    break
                                 # actionbutton:{talkActionButtonId}:"Talk"
-                                if not GetEventFlag({playerIsSneaking.id}) or GetEventFlag({pickpocketedFlag.id}){forceGreetBypassSneak}:
+                                elif not GetEventFlag({playerIsSneaking.id}) or GetEventFlag({pickpocketedFlag.id}){forceGreetBypassSneak}:
                                     call = t{id:D9}_x{Const.ESD_STATE_HARDCODE_IDLETALK:D2}()
                                     if (GetEventFlag(flag9) or not (not GetOneLineHelpStatus() and not IsClientPlayer() and not IsPlayerDead() and not IsCharacterDisabled()) or (not GetEventFlag(flag10) and not GetEventFlag(flag14) and not GetEventFlag(flag15) and not GetEventFlag(flag16) and not GetEventFlag(flag17))):
                                         continue
                                     elif {actionButtonCheck}:
                                         break
-                                    elif GetEventFlag({playerIsSneaking.id}):
+                                    elif GetEventFlag({playerIsSneaking.id}) or GetEventFlag({forceFlag.id}):
                                         continue
                                 # actionbutton:{pickpocketActionId}:"Pickpocket"
                                 elif GetEventFlag({playerIsSneaking.id}):
@@ -296,7 +303,7 @@ namespace JortPob
                                     elif CheckActionButtonArea({pickpocketActionId}):
                                         assert t{id:D9}_x{Const.ESD_STATE_HARDCODE_PICKPOCKET:D2}()
                                         continue
-                                    elif not GetEventFlag({playerIsSneaking.id}){forceGreetBypassSneak}:
+                                    elif not GetEventFlag({playerIsSneaking.id}){forceGreetBypassSneak} or GetEventFlag({forceFlag.id}):
                                         continue
                             """State 5"""
                             return 0
@@ -545,7 +552,7 @@ namespace JortPob
                 {
                     if (talkData.dialogInfo.script.calls.Count() > 0)
                     {
-                        greetLine += talkData.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, itemManager, speffManager, scriptManager, npcContent, id, 8);
+                        greetLine += talkData.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, npcManager, itemManager, speffManager, scriptManager, npcContent, id, 8);
                     }
                     if (talkData.dialogInfo.script.choice != null)
                     {
@@ -973,7 +980,7 @@ namespace JortPob
                     {
                         if (talk.dialogInfo.script.calls.Count() > 0)
                         {
-                            s.Append(talk.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, itemManager, speffManager, scriptManager, npcContent, id, 16));
+                            s.Append(talk.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, npcManager, itemManager, speffManager, scriptManager, npcContent, id, 16));
                         }
                         if(talk.dialogInfo.script.choice != null)
                         {
@@ -1637,7 +1644,7 @@ namespace JortPob
                     {
                         if (talkData.dialogInfo.script.calls.Count() > 0)
                         {
-                            executeList += talkData.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, itemManager, speffManager, scriptManager, npcContent, id, 12);
+                            executeList += talkData.dialogInfo.script.GenerateEsdSnippet(esm, layout, msb, sound, paramanager, npcManager, itemManager, speffManager, scriptManager, npcContent, id, 12);
                         }
                         if (talkData.dialogInfo.script.choice != null) // rare situation where a choice option goes into another choice option
                         {

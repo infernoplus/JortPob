@@ -35,6 +35,7 @@ namespace JortPob.Scripts
         {
             SpawnHandler, SpawnHandlerDisableable, SpawnHandlerPhased, IntSpawnHandler, IntSpawnHandlerDisableable, IntSpawnHandlerPhased, Halt,
             LoadDoor, NpcHostilityHandler, Message, Essential, DeadBody, CharacterFlexInventory,
+            PlaceAtPcHandler,
             ItemAsset, OwnedItemAsset, ItemAssetWithDisable, OwnedItemAssetWithDisable, OwnedContainer, TravelWarp, RemoveItem, PermanentSpeff,
             StaticDisable, PlaySE, TriggerEnable, TriggerDisable, NpcModStat, NpcInfight, GetSecondsPassed,
             AreaBossFog, AreaBossFight, FieldBossFight, FieldBossDefeat
@@ -174,6 +175,9 @@ namespace JortPob.Scripts
 
             /* Create event for the defeat of a field boss*/
             RegisterTemplateEvent(Event.FieldBossDefeat, "CommonFunc:FieldBossDefeat", TemplateEMEVD.CreateFieldBossDefeatEvent);
+
+            /* Create event for handling PlaceAtPc papyrus call */
+            RegisterTemplateEvent(Event.PlaceAtPcHandler, "CommonFunc:PlaceAtPcHandler", TemplateEMEVD.CreatePlaceAtPcHandler);
         }
 
         public override string[] FilesToLink()

@@ -21,22 +21,42 @@ namespace JortPob
             sounds = new();
         }
 
-        // Returns the row id of the sound you add
-        public int AddSound(string record, Sound.Type type, bool loop, bool spatialize, float volume, float pitch, string file)
+        // Find sound and return
+        public Sound GetSound(string record, Sound.Type type)
         {
-            if (Const.DEBUG_SKIP_SOUND) { return 5; } // see below
+            return sounds.FirstOrDefault(i => i.record.ToLower() == record.ToLower() && i.type == type);
+        }
+
+        // Returns the row id of the sound you add
+        public Sound AddSound(string record, Sound.Type type, bool loop, bool spatialize, float volume, float pitch, string file)
+        {
+            if (Const.DEBUG_SKIP_SOUND) { return null; } // see below
 
             /* See if this sound has already been added to the bank with the same (or similar enough) settings */
             foreach (Sound s in sounds)
             {
                 if(s.IsSame(record, type, loop, spatialize, volume, pitch))
                 {
-                    return (int)s.id;
+                    return s;
                 }
             }
 
             /* Check if sound exists, if it doeesn't then just return some random number */
-            if (!File.Exists(file)) { return 5; }  // yes, morrowind has scripts that just point to sound files that don't exist. returning a play id number that will likely do nothing
+            string fileActual;
+            if (!File.Exists(file))
+            {
+                // Bethesda is really dumb and uses the wrong extensions sometimes
+                if (Path.GetExtension(file).ToLower() == ".mp3" && File.Exists(Path.ChangeExtension(file, ".wav")))
+                {
+                    fileActual = Path.ChangeExtension(file, ".wav");
+                }
+                else if (Path.GetExtension(file).ToLower() == ".wav" && File.Exists(Path.ChangeExtension(file, ".mp3")))
+                {
+                    fileActual = Path.ChangeExtension(file, ".mp3");
+                }
+                else { return null; } // yes, morrowind has scripts that just point to sound files that don't exist. Why are you suprised by this?
+            }
+            else { fileActual = file; }
 
             /* Setup some paths */
             string wav = Path.Combine(Const.CACHE_PATH, "sound", $"{record}\\{record}.wav");
@@ -47,20 +67,23 @@ namespace JortPob
             if (!File.Exists(wem))
             {
                 /* Some files are mp3 and some are wav. Convert if needed, otherwise just copy paste to cache to get ready for wem conversion */
-                if (Path.GetExtension(file).ToLower() == ".mp3") { Audio.MP3toWAV(file, wav); }
-                else { File.Copy(file, wav); }
+                if (Path.GetExtension(fileActual).ToLower() == ".mp3") { Audio.MP3toWAV(fileActual, wav); }
+                else { File.Copy(fileActual, wav); }
 
                 /* Convert wav to wem */
                 Audio.WAVtoWEM(wav);
             }
 
+            /* Measure duration of sound */
+            float duration = (float)(Audio.GetDuration(wav) * 0.001d);
+
             /* Create play/stop ids and source id for bnk to use */
             uint[] ids = globals.GetEventBnkId("s");
 
-            Sound sound = new(record, type, loop, spatialize, volume, pitch, ids[0], ids[1], ids[2], wem, globals.NextSourceId());
+            Sound sound = new(record, type, loop, spatialize, volume, pitch, ids[0], ids[1], ids[2], wem, globals.NextSourceId(), duration);
             sounds.Add(sound);
 
-            return (int)sound.id; // Return play id so script can trigger this sound effect
+            return sound; // Return play id so script can trigger this sound effect
         }
 
         public void Write()
@@ -201,11 +224,12 @@ namespace JortPob
             bool spatialize,            // if true = 3d sound, false = direct speaker play
             float volume,               // these appear to be unused by morrowind but i'm including them
             float pitch,                // these appear to be unused by morrowind but i'm including them
-            uint id,                    // id used for script calls to playback this sound
+            uint id,                    // id used for script calls to playback this sound (have to multiply by 10 though due to reasons)
             uint play,
             uint stop,
             string file,                // wem file
-            uint source                 // source is wem id
+            uint source,                // source is wem id
+            float duration              // in seconds
         )
         {
             public enum Type { Voice, SFX }

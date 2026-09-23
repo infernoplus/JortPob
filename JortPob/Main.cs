@@ -67,6 +67,10 @@ namespace JortPob
                     Compression = Compression.KRAK()
                 };
 
+                /* Assign msb back to layout object. Script compiler needs access for certain things */
+                group.msb = msb;
+
+                /* Adjacent stuff */
                 BaseScript script = scriptManager.GetScript(group);
                 LightManager lightManager = new(group.map, group.coordinate.x, group.coordinate.y, group.block);
                 ResourcePool pool = new(group, msb, lightManager, script);
@@ -867,9 +871,6 @@ namespace JortPob
                     msb.Regions.EnvironmentMapPoints.Add(envPoint);
                 }
 
-                /* Auto resource */
-                AutoResource.Generate(group.map, group.coordinate.x, group.coordinate.y, group.block, msb);
-
                 /* Done */
                 msbs.Add(pool);
                 Lort.TaskIterate(); // Progress bar update
@@ -1082,14 +1083,14 @@ namespace JortPob
                 }
 
                 /* Then compile papyrus and dialog */
-                if (papyrusMain != null) { PapyrusEMEVD.Compile(esm, layout, null, sound.main, scriptManager, param, item, speff, scriptManager.common, papyrusMain, null); }
+                if (papyrusMain != null) { PapyrusEMEVD.Compile(esm, layout, null, sound.main, scriptManager, param, character, item, speff, scriptManager.common, papyrusMain, null); }
                 Lort.TaskIterate();
                 foreach (PleaseCompile compile in contentToCompile)
                 {
                     if (compile.content is BedContent) { continue; } // bed scripts become ESD c1000's
 
                     Papyrus papyrus = esm.GetPapyrus(compile.content.papyrus);
-                    if (papyrus != null) { PapyrusEMEVD.Compile(esm, layout, compile.msb, sound.main, scriptManager, param, item, speff, compile.script, papyrus, compile.content); }
+                    if (papyrus != null) { PapyrusEMEVD.Compile(esm, layout, compile.msb, sound.main, scriptManager, param, character, item, speff, compile.script, papyrus, compile.content); }
 
                     if (compile.content is CharacterContent characterContent)
                     {
