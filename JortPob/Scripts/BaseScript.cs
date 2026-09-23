@@ -321,6 +321,26 @@ namespace JortPob.Scripts
             init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.CharacterFlexInventory]}, {string.Join(", ", parameters)});"));
         }
 
+        /* Register a PlaceAtPc call with the given entity id being the injected object for the PlaceAtPc to handle */
+        public Script.Flag RegisterPlaceAtPc(uint entity)
+        {
+            /* Create triggering flag to return */
+            Script.Flag triggerFlag = CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.PlaceAtPc, entity.ToString());
+            
+            /* Register event */
+            List<string> parameters = new()
+            {
+                triggerFlag.id.ToString(),
+                entity.ToString(),
+                entity.ToString(),
+                triggerFlag.id.ToString(),
+                entity.ToString(),
+                entity.ToString()
+            };
+            init.Instructions.Add(AUTO.ParseAdd($"InitializeCommonEvent(0, {manager.common.events[ScriptCommon.Event.PlaceAtPcHandler]}, {string.Join(", ", parameters)});"));
+            return triggerFlag;
+        }
+
         /* Abstracts supported by only ScriptArea */
         public abstract  (uint bed, uint respawn) RegisterBed();
         public abstract void RegisterLoadDoor(Paramanager paramanager, DoorContent door);

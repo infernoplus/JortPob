@@ -439,7 +439,7 @@ namespace JortPob.Scripts
         {
             { Flag.Category.Event, new uint[] { 1000, 3000, 6000 } },
             { Flag.Category.Saved, new uint[] { 0, 4000, 7000, 8000, 9000 } },
-            { Flag.Category.Temporary, new uint[] { 2000, 5000 } }
+            { Flag.Category.Temporary, new uint[] { 2000 } }  // 5000 is listed as temporary flag space but is buggy as fuck and awful. DO NOT USE. EVER.
         };
 
         public override Flag CreateFlag(Flag.Category category, Flag.Type type, Flag.Designation designation, Content content, uint value = 0, bool allowPhased = false)
@@ -468,7 +468,13 @@ namespace JortPob.Scripts
             if(map == 60) { mapOffset = uint.Parse($"10{x:D2}{y:D2}0000"); }
             else { mapOffset = uint.Parse($"{map:D2}{x:D2}0000"); }
 
-            uint id = mapOffset + FLAG_TYPE_OFFSETS[category][perThou] + mod;  // if we run out of flags this will throw an out of bounds exception. that situation would be bad but should't happen.
+            // If we run out of flags in an area script this will trigger and start creating flags in the common overflow instead. Not ideal but without this we would run out of flag space in some areas
+            if(perThou >= FLAG_TYPE_OFFSETS[category].Count())
+            {
+                return manager.common.CreateFlag(category, type, designation, name, value);
+            }
+
+            uint id = mapOffset + FLAG_TYPE_OFFSETS[category][perThou] + mod;
             flagUsedCounts[category] += (uint)type;
 
             // Check for a collision with a common event flag, if we find a collision we recursviely try making another flag
@@ -579,6 +585,7 @@ namespace JortPob.Scripts
                 PermanentSpeff, NpcModStat,  // Used for maintaining speffs on the player/npcs permanently
                 NpcInfight,   // Used to make npcs fight each other. papyrus StartCombat/StopCombat calls
                 AiPackage,   // Index of what default aipacakge we are running
+                AiPackageType, // Type of package we are currently running (used by papyrus call GetCurrentAIPackage)
                 SwitchAiPackage, // Very special event flag that creates a function with a single parameter that kills all ai package events and starts a new one after
                 TriggerSwitchAiPackage, // Trigger flag for above, used by dialog result
                 AiPackageDone,  // Set to 1 when "SwitchAiPackage" is called. Reading from this value in a script sets it back to 0
@@ -591,9 +598,13 @@ namespace JortPob.Scripts
                 RemoveItem,  // Flag to trigger removing an item from the player
                 Random,      // Flag for EMEVD papyrus to get values from Random calls
                 SecondsPassed, // Timer flag value used to emulate GetSecondsPassed papyrus call
+                ForceGreet, // flag used for forcing an npc to talk to the player. used by the ForceGreeting papyrus call
+                Saying,    // Flag tied to an npc that is true when they are saying a voice line via script and false when they are done. only triggerd by "Say" papyrus call and read by "SayDone"
+                SoundPlaying,  // same as above but for sound effects instead of voices
                 TriggerEnable, TriggerDisable,  // Flags set by ESD to trigger an EMEVD event to enable or disable an object
                 DiscoverLocation,  // marks location on your map when set
                 RegisterBed,      // For register bonfire calls in EMEVD
+                PlaceAtPc,    // Trigger flag for PlaceAtPcHandler common event. handles the papyrus call ofthe same name
                 BossDead,     // what do you think?
                 Hardcode     // Used by any jank hardcoding I end up doing
             }

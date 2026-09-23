@@ -1,9 +1,10 @@
 ﻿using JortPob.Common;
+using JortPob.Scripts;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
-using HKLib.hk2018.hkcdStaticMeshTree;
+using static JortPob.Layout;
 
 namespace JortPob
 {
@@ -35,6 +36,19 @@ namespace JortPob
         public override void AddCell(ScriptManager scriptManager, Cell cell)
         {
             cells.Add(cell);
+
+            /* Add cells pathgrid to the tile */
+            for (int i = 0; i < cell.paths.Count; i++)
+            {
+                Vector3 path = cell.paths[i];
+                string name = $"PathGrid_{map:D2}{coordinate.x:D2}{coordinate.y:D2}_{cell.coordinate.x:D2}{cell.coordinate.y:D2}_{i:D4}";
+                float x = (coordinate.x * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+                float y = (coordinate.y * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+                Vector3 relative = (path + Const.LAYOUT_COORDINATE_OFFSET) - new Vector3(x, 0, y);
+                Layout.PathGridPoint point = new(name, relative, scriptManager.common.CreateEntity(Script.EntityType.Region, $"PathGridPoint"));
+                paths.Add(point);
+            }
+
             BigTile big = GetBigTile(cell.center);
             if(big == null) { Lort.Log($" ## WARNING ## Cell fell outside of reality [{cell.coordinate.x}, {cell.coordinate.y}] -- {cell.name} :: B01", Lort.Type.Debug); return; }
             big.AddCell(scriptManager, cell);
@@ -94,6 +108,41 @@ namespace JortPob
                     big.AddContent(cache, cell, content);
                     break;
             }
+        }
+
+        /* Add travelpoint */
+        public void AddTravelPoint(BaseScript script, Vector3 point, float radius = -1f)
+        {
+            float x = (coordinate.x * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+            float y = (coordinate.y * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+            Vector3 relative = (point + Const.LAYOUT_COORDINATE_OFFSET) - new Vector3(x, 0, y);
+            uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{point}");
+            TravelPoint travel = new($"Travel_{map:D2}{coordinate.x:D2}{coordinate.y:D2}_{travels.Count:D4}", point, relative, radius == -1f ? Const.PATH_REGION_SIZE : radius, region);
+            travels.Add(travel);
+        }
+
+        /* Converts all "Travel" positions to travelpoints */
+        public void ProcessTravelPoints(ScriptManager scriptManager)
+        {
+            BaseScript script = scriptManager.GetScript(this);
+            void HandleCharacterContent(CharacterContent content)
+            {
+                foreach (CharacterContent.AiPackage package in content.packages)
+                {
+                    if (package.type == CharacterContent.AiPackage.Type.Travel)
+                    {
+                        float x = (coordinate.x * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+                        float y = (coordinate.y * 4f * Const.TILE_SIZE) + (Const.TILE_SIZE * 1.5f);
+                        Vector3 relative = (package.position + Const.LAYOUT_COORDINATE_OFFSET) - new Vector3(x, 0, y);
+                        uint region = script.CreateEntity(Script.EntityType.Region, $"Travel:Region:{package.position}");
+                        TravelPoint travel = new($"Travel_{map:D2}{coordinate.x:D2}{coordinate.y:D2}_{travels.Count:D4}", package.position, relative, Const.PATH_REGION_SIZE, region);
+                        travels.Add(travel);
+                    }
+                }
+            }
+
+            foreach (NpcContent c in npcs) { HandleCharacterContent(c); }
+            foreach (CreatureContent c in creatures) { HandleCharacterContent(c); }
         }
 
         public BigTile GetBigTile(Vector3 position)

@@ -1,6 +1,5 @@
 ﻿using JortPob.Common;
 using JortPob.Scripts;
-using Microsoft.VisualBasic.ApplicationServices;
 using Newtonsoft.Json;
 using SoulsFormats;
 using System;
@@ -807,7 +806,7 @@ namespace JortPob
 
             /* Creates code for a dialog esd to execute when the dialoginfo that this dialogpapyrus is owned by gets played */
             private static List<String> debugUnsupportedPapyrusCallLogging = new();
-            public string GenerateEsdSnippet(ESM esm, Layout layout, MSBE msb, MainSoundBank sound, Paramanager paramanager, ItemManager itemManager, SpeffManager speffManager, ScriptManager scriptManager, CharacterContent npcContent, uint esdId, int indent)
+            public string GenerateEsdSnippet(ESM esm, Layout layout, MSBE msb, MainSoundBank sound, Paramanager paramanager, NpcManager npcManager, ItemManager itemManager, SpeffManager speffManager, ScriptManager scriptManager, CharacterContent npcContent, uint esdId, int indent)
             {
                 /* Used by AiFollow, AiFollowCell, AiWander, AiEscort, and AiEscortCell to have a time based cancel for their ai package */
                 Script.Flag CreateAiPackageDurationEvent(Papyrus.Call call, BaseScript script, CharacterContent content, float duration)
@@ -1102,7 +1101,7 @@ namespace JortPob
                                 ) {
                                     if (position != Vector3.Zero)
                                     {
-                                        Layout.TravelPoint goal = layout.FindTravelable(location, position);
+                                        Layout.TravelPoint goal = layout.FindTravelable(target, position);
                                         if (goal != null)
                                         {
                                             uint defaultId = target.packageDefaultFlag != null ? target.packageDefaultFlag.id : 0;
@@ -1115,6 +1114,8 @@ namespace JortPob
                                 else { Lort.Log($"AiFollow goal was determined unreacahable by interior cell traversal: '{call.RAW}'", Lort.Type.Debug); }
 
                                 // Follow stuff
+                                Script.Flag packTypeFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+                                evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)NpcManager.AiPackageType.Follow}, 0, 1, 5);"));
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"SetSpEffect({target.entity}, {(int)SpeffManager.Functional.NpcFollow});"));   // apply speff for follower
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"WaitFixedTimeFrames(15);"));                                                 // wait half a second~
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EndUnconditionally(EventEndType.Restart);"));                               // repeat endlessly
@@ -1157,6 +1158,8 @@ namespace JortPob
                                 EMEVD.Event evt = new();
                                 evt.ID = evtFlag.id;
                                 uint defaultId = target.packageDefaultFlag != null ? target.packageDefaultFlag.id : 0;
+                                Script.Flag packTypeFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+                                evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)NpcManager.AiPackageType.Travel}, 0, 1, 5);"));
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));                      // set route for them to travel
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                             // request replan to get their brain actually working
                                 evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfInoutsideArea(MAIN, InsideOutsideState.Inside, {target.entity}, {tp.entity}, 1);"));    // blocking wait till they reach the destination
@@ -1198,6 +1201,9 @@ namespace JortPob
                                 EMEVD.Event evt = new();
                                 evt.ID = evtFlag.id;
 
+                                // Grab package type flag so we can assign it whatever below
+                                Script.Flag packTypeFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Nibble, Script.Flag.Designation.AiPackageType, target.entity.ToString());
+
                                 // If we have a duration parameter then setup a timer to end the event
                                 if (duration > 0)
                                 {
@@ -1208,6 +1214,7 @@ namespace JortPob
                                 // 'Do nothing' wander with 0 distance
                                 if (distance <= 0)
                                 {
+                                    evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)NpcManager.AiPackageType.None}, 0, 1, 5);"));
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, 6000);"));               // Wait forever
                                 }
                                 // Regular wander but no pathgrid so just improvise with type 6 patrol "Randomly wander around"
@@ -1217,6 +1224,7 @@ namespace JortPob
                                     patrol.EntityID = areaScript.CreateEntity(Script.EntityType.Event, $"Random->{patrol.Name}");
                                     msb.Events.Add(patrol);
 
+                                    evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)NpcManager.AiPackageType.Wander}, 0, 1, 5);"));
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));          // set route to "wander randomly"
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                 // brain go boom
                                     evt.Instructions.Add(areaScript.AUTO.ParseAdd($"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, 6000);"));               // Wait forever                      
@@ -1230,6 +1238,7 @@ namespace JortPob
                                         patrol.EntityID = areaScript.CreateEntity(Script.EntityType.Event, $"Goto->{patrol.Name}");
                                         msb.Events.Add(patrol);
 
+                                        evt.Instructions.Add(areaScript.AUTO.ParseAdd($"EventValueOperation({packTypeFlag.id}, {packTypeFlag.Bits()}, {(int)NpcManager.AiPackageType.Wander}, 0, 1, 5);"));
                                         evt.Instructions.Add(areaScript.AUTO.ParseAdd($"WaitRandomTimeSeconds(1, 12);"));                                                                // wait around for a bit
                                         evt.Instructions.Add(areaScript.AUTO.ParseAdd($"ChangeCharacterPatrolBehavior({target.entity}, {patrol.EntityID});"));                          // set route to next wander position
                                         evt.Instructions.Add(areaScript.AUTO.ParseAdd($"RequestCharacterAIReplan({target.entity});"));                                                 // request replan to kickstart npcs brain
@@ -1568,10 +1577,21 @@ namespace JortPob
                                 }
                                 break;
                             }
+                        case Papyrus.Call.Type.PayFineThief:
                         case Papyrus.Call.Type.PayFine:
                             {
                                 Script.Flag aflag = scriptManager.GetFlag(Script.Flag.Designation.CrimeAbsolved, "CrimeAbsolved");
                                 Script.Flag crimeLevel = scriptManager.GetFlag(Script.Flag.Designation.CrimeLevel, "CrimeLevel");
+                                // If paying fine through thieves guild you get a small discount on the amount
+                                if(call.type == Papyrus.Call.Type.PayFineThief)
+                                {
+                                    lines.Add($"ChangePlayerStat(PlayerStat.RunesCollected, ChangeType.Subtract, GetEventFlagValue({crimeLevel.id}, {crimeLevel.Bits()}) * 0.8)");
+                                }
+                                // If paying fine through the guards its normal amount
+                                else
+                                {
+                                    lines.Add($"ChangePlayerStat(PlayerStat.RunesCollected, ChangeType.Subtract, GetEventFlagValue({crimeLevel.id}, {crimeLevel.Bits()}))");
+                                }
                                 lines.Add($"SetEventFlag({aflag.id}, FlagState.On);"); // setting this flag triggers a common event that clears all crime values
                                 lines.Add($"SetEventFlagValue({crimeLevel.id}, {crimeLevel.Bits()}, 0)"); // seting crimelevel to zero here since if this value isnt cleared immidieatly it can cause guards to re-engage you
                                 break;
@@ -1648,6 +1668,19 @@ namespace JortPob
                                 }
                                 break;
                             }
+                        case Papyrus.Call.Type.ForceGreeting:
+                            {
+                                // find our target content
+                                Content t;
+                                if (call.target == null) { t = npcContent; }
+                                else { t = layout.FindScriptReference(npcContent, call.target); }
+                                if (t == null || t is not CharacterContent target) { break; } // Failed to find script reference. Should only happen when making partial builds.
+
+                                BaseScript areaScript = scriptManager.FindScriptFor(layout, target);
+                                Script.Flag forceFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.ForceGreet, target);
+                                lines.Add($"SetEventFlag({forceFlag.id}, FlagState.On)");
+                                break;
+                            }
                         case Papyrus.Call.Type.PlaySound:
                         case Papyrus.Call.Type.PlaySoundVP:
                         case Papyrus.Call.Type.PlaySound3D:
@@ -1695,13 +1728,111 @@ namespace JortPob
                                 BaseScript script = scriptManager.FindScriptFor(layout, target);
 
                                 // Add sound to main bank and get playback id
-                                int seId = sound.AddSound(info.id, MainSoundBank.Sound.Type.SFX, loop, spatialize, volume, pitch, file);
+                                MainSoundBank.Sound se = sound.AddSound(info.id, MainSoundBank.Sound.Type.SFX, loop, spatialize, volume, pitch, file);
+                                if (se == null) { Lort.Log($"Failed to get sound for 'PlaySoundX' command '{call.RAW}'", Lort.Type.Debug); break; }
 
                                 // Get PlaySE event
-                                Script.Flag playFlag = script.GetOrRegisterPlaySE(targetId, seId);
+                                Script.Flag playFlag = script.GetOrRegisterPlaySE(targetId, (int)se.id);
 
                                 // Trigger flag for the event
                                 lines.Add($"SetEventFlag({playFlag.id}, FlagState.On)");
+                                break;
+                            }
+
+                        case Papyrus.Call.Type.PlaceAtPc:
+                            {
+                                // Get source for this placeatpc
+                                Content source = npcContent;
+                                if (source == null) { break; } // cannot do placeatpc unless the script source is a game object
+
+                                // create an object at that sources location
+                                Record record = esm.FindRecordById(call.parameters[0]);
+                                if (record.type != ESM.Type.Creature && record.type != ESM.Type.Npc) { Lort.Log($"PlaceAtPc does not support {record.type} currently - {call.RAW}", Lort.Type.Debug); break; }
+                                BaseScript script = scriptManager.FindScriptFor(layout, source);
+                                CharacterContent inject = null;
+                                JsonNode fakeJson = new JsonObject
+                                {
+                                    ["id"] = record.json["id"].GetValue<string>(),
+                                    ["translation"] = new JsonArray { source.position.X, source.position.Z, source.position.Y }, // flipping these as the constructor for Content will flip them back
+                                    ["rotation"] = new JsonArray { 0, 0, 0 },
+                                };
+
+                                // Find root partname if needed
+                                string rootCollision = null;
+                                foreach (MSBE.Part.Enemy e in msb.Parts.Enemies)
+                                {
+                                    if (e.EntityID == source.entity) { rootCollision = e.CollisionPartName; break; }
+                                }
+                                foreach (MSBE.Part.Asset a in msb.Parts.Assets)
+                                {
+                                    if (a.EntityID == source.entity) { rootCollision = a.UnkPartNames[1]; break; }
+                                }
+
+                                // Inject if creature
+                                if (record.type == ESM.Type.Creature)
+                                {
+                                    inject = new CreatureContent(esm, source.cell, fakeJson, record);
+                                    inject.entity = script.CreateEntity(Script.EntityType.Enemy, $"PlaceAtPc-> {inject.id}");
+
+                                    Override.EnemyRemap remap = Override.GetEnemyRemap(inject.id);
+
+                                    MSBE.Part.Enemy enemy = MakePart.Creature(remap.character);
+                                    enemy.Position = source.relative + Const.MSB_OFFSET; // copy position from source object
+                                    enemy.Rotation = inject.rotation;
+
+                                    if (rootCollision != null)
+                                    {
+                                        enemy.Unk1.DisplayGroups[0] = 0;
+                                        enemy.CollisionPartName = rootCollision;
+                                    }
+
+                                    /* Resolve this creatures inventory */
+                                    itemManager.ResolveInventory(inject as CreatureContent);
+
+                                    (int npc, int think, int init) paramRows = npcManager.GetParams(itemManager, script, inject as CreatureContent, remap); // creates/gets and returns NpcParam, NpcThinkParam, and CharInitParam
+                                    enemy.NPCParamID = paramRows.npc;
+                                    enemy.ThinkParamID = paramRows.think;
+                                    enemy.CharaInitID = paramRows.init;
+
+                                    enemy.EntityID = inject.entity;
+
+                                    /* Add to msb */
+                                    msb.Parts.Enemies.Add(enemy);
+                                }
+
+                                // Inject if npc
+                                else if (record.type == ESM.Type.Npc)
+                                {
+                                    inject = new NpcContent(esm, source.cell, fakeJson, record);
+                                    inject.entity = script.CreateEntity(Script.EntityType.Enemy, $"PlaceAtPc-> {inject.id}");
+
+                                    MSBE.Part.Enemy enemy = MakePart.Npc();
+                                    enemy.Position = source.relative + Const.MSB_OFFSET; // copy position from source object
+                                    enemy.Rotation = inject.rotation;
+
+                                    if (rootCollision != null)
+                                    {
+                                        enemy.Unk1.DisplayGroups[0] = 0;
+                                        enemy.CollisionPartName = rootCollision;
+                                    }
+
+                                    /* Resolve this creatures inventory */
+                                    itemManager.ResolveInventory(inject as NpcContent);
+
+                                    (int npc, int think, int init) paramRows = npcManager.GetParams(itemManager, script, inject as NpcContent); // creates/gets and returns NpcParam, NpcThinkParam, and CharInitParam
+                                    enemy.NPCParamID = paramRows.npc;
+                                    enemy.ThinkParamID = paramRows.think;
+                                    enemy.CharaInitID = paramRows.init;
+
+                                    enemy.EntityID = inject.entity;
+
+                                    /* Add to msb */
+                                    msb.Parts.Enemies.Add(enemy);
+                                }
+
+                                // Register PlaceAtPc call with script and get our triggering flag, and set that trigger when this call happens
+                                Script.Flag papcFlag = script.RegisterPlaceAtPc(inject.entity);
+                                lines.Add($"SetEventFlag({papcFlag.id}, FlagState.On);");
                                 break;
                             }
                         case Papyrus.Call.Type.SetHealth:
@@ -1807,7 +1938,7 @@ namespace JortPob
                                 {
                                     subscriptRunFlag = targetScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.RunSubscript, $"{npcContent.entity}->{subscript.id}");
                                     PapyrusEMEVD.InitializeLocalVariables(esm, scriptManager, targetScript, subscript, npcContent); // @TODO: intialize subscript vars during the Main.cs local initializer phase? this might be an issue here?
-                                    PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, itemManager, speffManager, targetScript, subscript, npcContent, subscriptRunFlag);
+                                    PapyrusEMEVD.Compile(esm, layout, msb, sound, scriptManager, paramanager, npcManager, itemManager, speffManager, targetScript, subscript, npcContent, subscriptRunFlag);
                                 }
 
                                 // Finally we just add some code here to start/stop the subscript

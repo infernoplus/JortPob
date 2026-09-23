@@ -38,6 +38,12 @@ namespace JortPob
             Occult = 1200
         }
 
+        public enum SoulGem
+        {
+            Misc_SoulGem_Petty = 30, Misc_SoulGem_Lesser = 60, Misc_SoulGem_Common = 120, 
+            Misc_SoulGem_Greater = 180, Misc_SoulGem_Grand = 600, Misc_SoulGem_Azura = 15000
+        }
+
         public readonly List<ItemInfo> items; // string is record if of item from MW. int is the row id of the item in Elden Ring, type is type of item in ER
         public readonly List<LeveledList> lists; // leveled lists for items
 

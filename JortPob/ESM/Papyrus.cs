@@ -463,7 +463,7 @@ namespace JortPob
                     parameters = Utility.StringAwareSplit(sanitize[6..].Trim(), ' ');
                 }
                 // Handle targeted call
-                else if (sanitize.Contains("->"))
+                else if (sanitize.Contains("->") && !sanitize.StartsWith("set"))
                 {
                     // Special split because targets can be in quotes and have spaces in them
                     string[] split = sanitize.Split("->");
@@ -565,6 +565,46 @@ namespace JortPob
                         return "5";
 
                     default: Lort.Log($"## PAPYRUS OPERATOR UNK ## ' {op} '", Lort.Type.Debug); return "0";
+                }
+            }
+
+            /* Same as above but flips greater and less than. Used in a special case where i want to flip a conditional the other way around */
+            public string ReversedOperatorIndex()
+            {
+                switch (op)
+                {
+                    case "==":
+                    case "=":
+                        return "0";
+                    case "!=":
+                        return "1";
+                    case "<":
+                        return "2";
+                    case ">":
+                        return "3";
+                    case "<=":
+                        return "4";
+                    case ">=":
+                        return "5";
+
+                    default: Lort.Log($"## PAPYRUS OPERATOR UNK ## ' {op} '", Lort.Type.Debug); return "0";
+                }
+            }
+
+            /* Actually resolve a comparison operation from this conditional with the given left side value */
+            public bool ResolveOperator(int leftValue)
+            {
+                if(right.type != Type.Literal) { throw new Exception($"Tried to 'ResolveOperator()' for call '{RAW}'"); }
+                int rightValue = int.Parse(right.parameters[0]);
+                switch (op)
+                {
+                    case "==": return leftValue == rightValue;
+                    case "!=": return leftValue != rightValue;
+                    case ">=": return leftValue >= rightValue;
+                    case ">": return leftValue > rightValue;
+                    case "<=": return leftValue <= rightValue;
+                    case "<": return leftValue < rightValue;
+                    default: return false;
                 }
             }
         }

@@ -187,6 +187,7 @@ namespace JortPob
                                         Script.Flag firstGreet = areaScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Bit, Script.Flag.Designation.TalkedToPc, character);
                                         Script.Flag disposition = areaScript.CreateFlag(Script.Flag.Category.Saved, Script.Flag.Type.Byte, Script.Flag.Designation.Disposition, character, (uint)character.disposition);
                                         Script.Flag pickpocketedFlag = areaScript.CreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.Pickpocketed, character);
+                                        Script.Flag forceFlag = areaScript.GetOrCreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.ForceGreet, character);
                                         Script.Flag thiefFlag = areaScript.CreateFlag(Script.Flag.Category.Temporary, Script.Flag.Type.Bit, Script.Flag.Designation.ThiefCrime, character);
 
                                         /* Register some scripts for NPCs */
@@ -222,6 +223,7 @@ namespace JortPob
 
             /* Process character aipackage positions */
             foreach (Tile tile in tiles) { tile.ProcessTravelPoints(scriptManager); }
+            foreach (HugeTile huge in huges) { huge.ProcessTravelPoints(scriptManager); }
             foreach (InteriorGroup group in interiors) { group.ProcessTravelPositions(scriptManager); }
 
             /* Generate map point placements */
@@ -810,6 +812,7 @@ namespace JortPob
 
                         BaseScript script = scriptManager.GetScript(target);
                         target.AddTravelPoint(script, position, 5f);
+                        target.huge.AddTravelPoint(scriptManager.common, position, Const.PATH_REGION_SIZE); // placing a copy of the travel point in the huge tile for promoted npcs to make use of
                         break;
                     }
                     case Papyrus.Call.Type.AiEscortCell:
@@ -838,6 +841,7 @@ namespace JortPob
 
                             BaseScript script = scriptManager.GetScript(t);
                             t.AddTravelPoint(script, position, Const.PATH_REGION_SIZE);
+                            t.huge.AddTravelPoint(scriptManager.common, position, Const.PATH_REGION_SIZE); // placing a copy of the travel point in the huge tile for promoted npcs to make use of
                         }
                         else
                         {
@@ -1472,6 +1476,15 @@ namespace JortPob
             return null; // not found anywhere!
         }
 
+        /* Given a content object, finds the generic tile or generic interior group that it is in */
+        /* Used during script compiling when we need to get the parent area of a target object */
+        public IMSBCompilableGroup FindLayout(Content content)
+        {
+            BaseTile t = FindTile(content);
+            if (t != null) { return t; }
+            else { return FindChunk(content).group; }
+        }
+
         /* Finds scripted position in exterior */
         public ScriptedPosition FindScriptedPosition(Vector3 position)
         {
@@ -1497,28 +1510,15 @@ namespace JortPob
             {
                 return tile.travels.FirstOrDefault(tp => Vector3.Distance(position, tp.position) < 0.1f);
             }
+            else if(t != null && t is HugeTile huge)
+            {
+                return huge.travels.FirstOrDefault(tp => Vector3.Distance(position, tp.position) < 0.1f);
+            }
             else
             {
                 InteriorGroup.Chunk chunk = FindChunk(content);
                 return chunk?.travels.FirstOrDefault(tp => Vector3.Distance(position, tp.position) < 0.1f);
             }
-        }
-
-        /* Finds travel position in an exterior */
-        public TravelPoint FindTravelable(Vector3 position)
-        {
-            return tiles
-                .SelectMany(tile => tile.travels)
-                .FirstOrDefault(tp => Vector3.Distance(position, tp.position) < 0.1f);
-        }
-
-        /* Finds travel position in an interior */
-        public TravelPoint FindTravelable(string name, Vector3 position)
-        {
-            if (name == null) { return FindTravelable(position); }  // if location = null then we assume its an exterior
-
-            InteriorGroup.Chunk chunk = FindChunk(name);
-            return chunk?.travels.FirstOrDefault(tp => Vector3.Distance(position, tp.position) < 0.1f);
         }
 
         /* Find all pathgridpoints within the radius of the given content */
@@ -1527,7 +1527,7 @@ namespace JortPob
             List<PathGridPoint> source;
             BaseTile tile = FindTile(content);
             if (tile != null && tile is Tile t) { source = t.paths; }
-            else if (tile != null && tile is HugeTile huge) { return new(); }  // @TODO: This is the case where we attempt to lookup wander points for an CharacterContent that is msb promoted so it fails to find anything. In order to resolve this we will need to propogate pathgrid shit up to big/huge tiles. Big annoying cunt to do and minimal effect on gameplay so fix it later!
+            else if (tile != null && tile is HugeTile huge) { source = huge.paths; }
             else {
                 InteriorGroup.Chunk chunk = FindChunk(content);
                 source = chunk.paths;

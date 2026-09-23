@@ -18,8 +18,6 @@ namespace JortPob
         public BigTile big;
 
         public Obj nav = new();  // navmesh representation of this msb tile
-        public override List<Layout.PathGridPoint> paths { get; } = [];
-        public override List<Layout.TravelPoint> travels { get; } = [];
 
         /* Checks ABSOLUTE POSITION! This is the position of an object from the ESM accounting for the layout offset! */
         public bool PositionInside(Vector3 position)
@@ -85,7 +83,7 @@ namespace JortPob
                 float x = (coordinate.x * Const.TILE_SIZE);
                 float y = (coordinate.y * Const.TILE_SIZE);
                 Vector3 relative = (path + Const.LAYOUT_COORDINATE_OFFSET) - new Vector3(x, 0, y);
-                Layout.PathGridPoint point = new(name,relative, script.CreateEntity(Script.EntityType.Region, $"PathGridPoint"));
+                Layout.PathGridPoint point = new(name, relative, script.CreateEntity(Script.EntityType.Region, $"PathGridPoint"));
                 paths.Add(point);
             }
         }
@@ -215,6 +213,8 @@ namespace JortPob
         public Int2 coordinate { get; init; } = new(x, y);
         public int block { get; init; } = b;
 
+        public SoulsFormats.MSBE msb { get; set; }
+
         public List<Cell> cells { get; init; } = [];
 
         public List<Tuple<Vector3, TerrainInfo>> terrain { get; init; } = [];
@@ -233,6 +233,8 @@ namespace JortPob
         public List<Layout.MapPoint> points { get; init; } = [];
         public List<Layout.ScriptedPosition> positions { get; init; } = [];
         public List<Layout.InterventionPoint> interventions { get; init; } = [];
+        public List<Layout.PathGridPoint> paths { get; init; } = [];
+        public List<Layout.TravelPoint> travels { get; init; } = [];
 
         public bool IsInterior { get; } = false;
         public Vector3 root
@@ -246,14 +248,6 @@ namespace JortPob
         public List<IMSBCompilableChunk> Chunks
         {
             get { return [this]; }
-        }
-        public virtual List<Layout.TravelPoint> travels
-        {
-            get { return []; }
-        }
-        public virtual List<Layout.PathGridPoint> paths
-        {
-            get { return []; }
         }
 
         public int[] IdList()

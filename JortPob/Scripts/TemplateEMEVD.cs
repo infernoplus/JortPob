@@ -447,5 +447,18 @@ namespace JortPob.Scripts
                 $"SetSpEffect(10000, {getNextParamName()});", // get souls
                 $"AwardItemLot({getNextParamName()});");   // sick lootage
         }
+
+        public static EMEVD.Event CreatePlaceAtPcHandler(Script.Flag flag, SoulsIds.Events events, Func<string> getNextParamName)
+        {
+            return CreateTemplatizedScript(flag, events,
+                $"SkipIfEventFlag(2, OFF, TargetEventFlagType.EventFlag, {getNextParamName()});",  // if triggering flag is already set
+                $"ChangeCharacterEnableState({getNextParamName()}, 0);",                          // disable
+                $"EndUnconditionally(EventEndType.End);",                                        // end event
+
+                $"ChangeCharacterEnableState({getNextParamName()}, 0);",                          // disable dude by default
+                $"IfEventFlag(MAIN, ON, TargetEventFlagType.EventFlag, {getNextParamName()});",  // wait until triggering flag is set
+                $"ChangeCharacterEnableState({getNextParamName()}, 1);",                        // enable dude
+                $"WarpCharacterAndCopyFloor({getNextParamName()}, 2, 10000, 12, 10000);");     // warp behind player
+        }
     }
 }
