@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using JortPob.Worker;
 using SoulsFormats;
@@ -42,6 +43,7 @@ namespace JortPob
 
         public NpcManager(ESM esm, Layout layout, SoundManager sound, Paramanager param, TextManager text, ItemManager item, SpeffManager speff, ScriptManager scriptManager)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             this.esm = esm;
             this.layout = layout;
             this.soundManager = sound;
@@ -493,6 +495,7 @@ namespace JortPob
         /* ESDs are now 1 to 1 with individual placements of enemies/creatures so the file writing has been simplified */
         public void Write()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             EsdWorker.Go(esds);
 
             Lort.Log($"Binding {esds.Count()} ESDs...", Lort.Type.Main);

@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using SoulsFormats;
 using System;
@@ -22,6 +23,7 @@ namespace JortPob
         public Dictionary<Cell, uint> areas; // dictionary of region entity ids that cover the volume of an interior cell
         public ScriptManager()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             common = new(this);
             scripts = new();
             locations = new();
@@ -110,6 +112,7 @@ namespace JortPob
         /* Also some other globalish vars we need for scripts like Reputation and CrimeLevel */
         public void SetupSpecialFlags(ESM esm, Paramanager paramanager)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Create some special common events */ // these have to wait until after ESM is loaded otherwise we'd just do it in the constructor
             common.CreateWeatherTracker();
             common.TimeHandler();
@@ -498,6 +501,7 @@ namespace JortPob
         /* This event is triggered when player goes to jail or pays fines to a guard. Resets all crime stuff like npc hostility and crime gold */
         public void GenerateGlobalCrimeAbsolvedEvent()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             List<Script.Flag> allFlags = [.. common.flags];
             foreach (Script script in scripts)
             {
@@ -546,6 +550,7 @@ namespace JortPob
         /* This function is very similar to CrimeAbsolve above but only resets hostility. This is used when the player rests to make npcs that the player provoked return to neutral */
         public void GenerateGlobalResetHostilityEvent()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             List<Script.Flag> allFlags = [.. common.flags];
             allFlags.AddRange(scripts.SelectMany(script => script.flags));
 
@@ -588,6 +593,7 @@ namespace JortPob
 
         public void GenerateAreaEvents()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             foreach(Script script in scripts)
             {
                 script.GenerateCrimeEvents();
@@ -648,6 +654,7 @@ namespace JortPob
         /* Write all EMEVD scripts this class has created */
         public void Write()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Debuggy thing */
             List<Script.Flag> allFlags = [.. common.flags];
             foreach (BaseScript script in scripts)

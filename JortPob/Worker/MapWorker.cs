@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -20,6 +21,7 @@ namespace JortPob.Worker
 
         private void Run()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             try
             {
                 Lort.Log("Loading UI map resources... ", Lort.Type.Main);
@@ -72,6 +74,7 @@ namespace JortPob.Worker
 
         public static void Go()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             if (Const.DEBUG_SKIP_CUSTOM_MAP) { return; }
             if (Const.DEBUG_REUSE_FILES &&
                 File.Exists(Path.Combine(Const.OUTPUT_PATH, "menu\\71_maptile.tpfbhd")) &&

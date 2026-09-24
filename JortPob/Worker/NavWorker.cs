@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Model;
 using System;
 using System.Collections.Concurrent;
@@ -14,6 +15,7 @@ namespace JortPob.Worker
     {
         public static void Go(List<string> objs)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Write navmesh settings */
             hkaiNavMeshGenerationSnapshot nNavmeshSettings = HkxUtility.GetDefaultNavmeshGenerationSnapshot();
             hkaiNavMeshGenerationSnapshot oNavmeshSettings = HkxUtility.GetLodNavmeshGenerationSnapshot();

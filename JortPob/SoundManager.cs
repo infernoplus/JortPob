@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Worker;
 using System;
 using System.Collections.Concurrent;
@@ -42,6 +43,7 @@ namespace JortPob
 
         public SoundManager()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             SAM.CreateProject(); // generate wwise project if it does not exist
 
             nextBankId = 100;
@@ -130,6 +132,7 @@ namespace JortPob
         {
             if (Const.DEBUG_SKIP_SOUND) { return; } // worlds largest time save
 
+            using var perf = PerformanceMonitor.TrackPerformance();
             SamWorker.Go(samQueue); // actually generate tts and convert wems
 
             Lort.Log($"Preprocessing {banks.Count()} BNKs...", Lort.Type.Main);

@@ -1,5 +1,6 @@
 ﻿using DirectXTexNet;
 using JortPob.Common;
+using JortPob.Logging;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;

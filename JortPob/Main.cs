@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using JortPob.Worker;
 using PortJob;
@@ -16,6 +17,7 @@ namespace JortPob
     {
         public static void Convert()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Init */
             Lort.Initialize(); // startup logging
             Override.Initialize(); // load all override jsons
@@ -879,24 +881,29 @@ namespace JortPob
             Lort.Log($"Generating {layout.TileCount} exterior msbs...", Lort.Type.Main);
             Lort.NewTask("Generating MSB", layout.TileCount);
 
+            var perfTileMSBs = PerformanceMonitor.TrackPerformance("AllTileMSBs");
             foreach (IMSBCompilableGroup group in layout.AllTiles)
             {
                 GenerateMSB(group);
             }
+            perfTileMSBs.Dispose();
 
             /* Generate interior msbs from interiorgroups */
             Lort.Log($"Generating {layout.InteriorCount} interior msbs...", Lort.Type.Main);
             Lort.NewTask("Generating MSB", layout.InteriorCount);
 
+            var perfInteriorMSBs = PerformanceMonitor.TrackPerformance("InteriorMSBs");
             foreach (IMSBCompilableGroup group in layout.Interiors)
             {
                 GenerateMSB(group);
             }
+            perfInteriorMSBs.Dispose();
 
             /* Generate navmeshes and then build nvas and nvbnds */
             /* First start by grabbing all the nav scene representations and converting them OBJ -> HKX -> NAV */
             if (!Const.DEBUG_SKIP_NAVMESH)
             {
+                using var perfNavmesh = PerformanceMonitor.TrackPerformance("GenNavmesh");
                 List<string> objs = new();
                 foreach (BaseTile bt in layout.Tiles)
                 {
@@ -923,6 +930,7 @@ namespace JortPob
                 NavWorker.Go(objs);
 
                 /* After all the nav conversions are finshed we can now do nvas and nvbnds */
+                var perfTiles = PerformanceMonitor.TrackPerformance("GenNavmesh.BindTiles");
                 Lort.Log($"Binding {layout.TileCount + layout.InteriorCount} NVBNDs...", Lort.Type.Main);
                 Lort.NewTask("Binding NVBNDs", layout.TileCount + layout.InteriorCount);
                 foreach (BaseTile bt in layout.Tiles)
@@ -985,6 +993,8 @@ namespace JortPob
                     nvbnd.Write(Path.Combine(Const.OUTPUT_PATH, "map", $"m{tile.map:D2}", $"m{mid}", $"m{mid}.nvmhktbnd.dcx"));
                     Lort.TaskIterate();
                 }
+                perfTiles.Dispose();
+                var perfIntGroups = PerformanceMonitor.TrackPerformance("GenNavmesh.InteriorGroups");
                 foreach (InteriorGroup group in layout.Interiors)
                 {
                     /* Some vars */
@@ -1055,6 +1065,7 @@ namespace JortPob
                     nvbnd.Write(Path.Combine(Const.OUTPUT_PATH, "map", $"m{group.map:D2}", $"m{mid}", $"m{mid}.nvmhktbnd.dcx"));
                     Lort.TaskIterate();
                 }
+                perfIntGroups.Dispose();
             }
 
 
@@ -1066,6 +1077,7 @@ namespace JortPob
             /* Initialize local variables first */
             if (!Const.DEBUG_SKIP_SCRIPTS)
             {
+                using var perfScripts = PerformanceMonitor.TrackPerformance("GenScripts");
                 Papyrus papyrusMain = esm.GetPapyrus("main");   // null check is needed because the vanilla "Main" script won't compile rn. only works with the compatibility patch
                 if (papyrusMain != null) { PapyrusEMEVD.InitializeLocalVariables(esm, scriptManager, scriptManager.common, papyrusMain, null); }
                 Lort.TaskIterate();
@@ -1161,10 +1173,12 @@ namespace JortPob
             Bind.BindAssets(cache);
             Bind.BindEmitters(cache);
             Bind.BindPickables(cache);
+            var perfWaterBind = PerformanceMonitor.TrackPerformance("BindLiquids");
             foreach (LiquidInfo water in cache.liquids)  // bind up them waters toooooo
             {
                 Bind.BindAsset(water, Path.Combine(Const.OUTPUT_PATH, $@"asset\aeg\{water.AssetPath()}.geombnd.dcx"));
             }
+            perfWaterBind.Dispose();
 
             /* Generate overworld */
             ResourcePool overworld = OverworldManager.Generate(cache, esm, layout, param);

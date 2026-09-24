@@ -1,5 +1,6 @@
 ﻿using ESDLang.Script;
 using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using Microsoft.Scripting.Utils;
 using PortJob;
@@ -20,7 +21,7 @@ namespace JortPob
         /* Create debug warp area inside stranded graveyard. Also delete some connect colision to isolate that msb fully */
         public static void Generate(Layout layout, ScriptManager scriptManager, Paramanager paramanager)
         {
-
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* DEBUG - Add a warp from stranded graveyard to various useful locations for debuggin */
             /* @TODO: Create a setting.json toggle that adds/removes this room from a build and instead places the player in the actual starting cell instead of debug room */
             MSBE debugMSB = MSBE.Read(Utility.ResourcePath(@"test\m18_00_00_00.msb.dcx"));

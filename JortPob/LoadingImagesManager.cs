@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using SoulsFormats;
 using System.Collections.Generic;
 using System.Drawing;

@@ -7,6 +7,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using TeximpNet.DDS;
+using JortPob.Logging;
 
 namespace JortPob.Common
 {

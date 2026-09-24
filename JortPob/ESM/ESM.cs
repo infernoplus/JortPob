@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using JortPob.Worker;
 using Newtonsoft.Json;
@@ -44,6 +45,7 @@ namespace JortPob
 
         public ESM(ScriptManager scriptManager)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             // Ensure the cache path exists
             Directory.CreateDirectory(Const.CACHE_PATH);
             /* Check if a json has been generated from the esm, if not make one */

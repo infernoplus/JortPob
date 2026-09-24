@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Model;
 using JortPob.Worker;
 using SharpAssimp;
@@ -246,6 +247,7 @@ namespace JortPob
         /* Big stupid load function */
         public static Cache Load(ESM esm)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             string manifestPath = Path.Combine(Const.CACHE_PATH, "cache.json");
 
             /* Cache Exists ? */

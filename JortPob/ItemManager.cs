@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using System;
 using System.Collections.Generic;
@@ -53,6 +54,7 @@ namespace JortPob
 
         public ItemManager(ESM esm, Paramanager paramanager, ScriptManager scriptManager, SpeffManager speffManager, MenuTextureManager textureManager, TextManager textManager)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             this.paramanager = paramanager;
             this.scriptManager = scriptManager;
             this.spellManager = new SpellManager(esm, paramanager, textManager);

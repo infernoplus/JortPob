@@ -7,6 +7,7 @@ using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 using System.Text;
 using System.Text.RegularExpressions;
+using JortPob.Logging;
 
 /* This exists for me to test if full voice acting will work properly before we get voice actors involved */
 namespace JortPob.Common

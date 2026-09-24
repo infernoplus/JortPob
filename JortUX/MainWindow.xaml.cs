@@ -1,4 +1,5 @@
 ﻿using JortPob;
+using JortPob.Logging;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,6 +17,9 @@ namespace JortUX
         {
             InitializeComponent();
 
+            ((TextBlock)FindName("MainOutput")).Text = "";
+            ((TextBlock)FindName("DebugOutput")).Text = "";
+
             running = true;
             job = new(Run);
             log = new(Check);
@@ -29,7 +33,7 @@ namespace JortUX
         {
             while (running)
             {
-                if (JortPob.Common.Lort.update)
+                if (Lort.update)
                 {
                     this.Dispatcher.Invoke(() =>
                     {
@@ -47,24 +51,24 @@ namespace JortUX
             TextBlock progress = (TextBlock)FindName("ProgressOutput");
             ProgressBar bar = (ProgressBar)FindName("ProgressBar");
 
-            string mainText = "", debugText = "";
+            string mainText = main.Text, debugText = debug.Text;
 
-            // top-to-bottom order
-            foreach (string line in JortPob.Common.Lort.mainOutput)
-                mainText += line + "\n";
+            // top-to-bottom order, so unfortunately stringbuilder doesn't work for us here
+            while (Lort.MainScreenOutput.LogLines.TryDequeue(out var mainLine))
+                mainText = $"{mainLine}\n{mainText}";
 
-            foreach (string line in JortPob.Common.Lort.debugOutput)
-                debugText += line + "\n";
+            while (Lort.ScreenOutput.LogLines.TryDequeue(out var line))
+                debugText = $"{line}\n{debugText}";
 
             main.Text = mainText;
             debug.Text = debugText;
-            progress.Text = $"{JortPob.Common.Lort.progressOutput} [ {JortPob.Common.Lort.current} / {JortPob.Common.Lort.total} ]";
+            progress.Text = $"{Lort.progressOutput} [ {Lort.current} / {Lort.total} ]";
 
-            float p = Math.Max(0, Math.Min(1, ((float)JortPob.Common.Lort.current / (float)JortPob.Common.Lort.total))) * 100f;
+            float p = Math.Max(0, Math.Min(1, ((float)Lort.current / (float)Lort.total))) * 100f;
             if (float.IsNaN(p)) p = 0;
             bar.Value = p;
 
-            JortPob.Common.Lort.update = false;
+            Lort.update = false;
         }
 
         public void Run()

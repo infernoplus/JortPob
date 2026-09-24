@@ -1,4 +1,4 @@
-﻿using JortPob.Worker;
+﻿using JortPob.Logging;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
@@ -11,6 +11,7 @@ namespace JortPob.Common
     {
         public static void BindMaterials(string outPath)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             BND4 bnd = BND4.Read(Utility.ResourcePath(@$"matbins\allmaterial.matbinbnd.dcx"));
 
             /* Grab all matbin files */
@@ -37,6 +38,7 @@ namespace JortPob.Common
         /* Binds all assets to correct asset directories */
         public static void BindAssets(Cache cache)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             cache.assets.AsParallel()
                 .WithDegreeOfParallelism(Const.THREAD_COUNT)
                 .ForAll(modelInfo =>
@@ -49,6 +51,7 @@ namespace JortPob.Common
         /* Bind all emitter assets */
         public static void BindPickables(Cache cache)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             foreach (PickableInfo pickable in cache.GetPickables())
             {
                 string outPath = Path.Combine(Const.OUTPUT_PATH, $@"asset\aeg\{pickable.AssetPath()}.geombnd.dcx");
@@ -75,7 +78,8 @@ namespace JortPob.Common
         /* Bind all emitter assets */
         public static void BindEmitters(Cache cache)
         {
-            foreach(EmitterInfo emitterInfo in cache.emitters)
+            using var perf = PerformanceMonitor.TrackPerformance();
+            foreach (EmitterInfo emitterInfo in cache.emitters)
             {
                 string outPath = Path.Combine(Const.OUTPUT_PATH, @$"asset\aeg\{emitterInfo.AssetPath()}.geombnd.dcx");
 
@@ -155,6 +159,7 @@ namespace JortPob.Common
         }
         public static void BindTPF(Cache cache, List<int> commons)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Collect all textures, kind of brute force, could optimize later */
             List<TextureInfo> textures = new();
             bool TextureExists(TextureInfo t)

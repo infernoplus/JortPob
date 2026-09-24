@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -197,6 +198,7 @@ namespace JortPob
         /* load all the override jsons into this class */
         public static void Initialize()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             /* Load do_not_place overrides */
             DO_NOT_PLACE = JsonConvert.DeserializeObject<List<string>>(File.ReadAllText(Utility.ResourcePath(@"overrides\do_not_place.json")))
                 .Select(dnp => dnp.ToLower()).ToHashSet();

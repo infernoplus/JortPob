@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using JortPob.Common;
+using JortPob.Logging;
 
 namespace JortPob
 {
@@ -9,6 +10,7 @@ namespace JortPob
 
         public MenuTextureManager(ESM esm)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             icon = new(esm);
         }
 

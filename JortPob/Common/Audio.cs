@@ -3,6 +3,7 @@ using NAudio.Wave;
 using System;
 using System.Diagnostics;
 using System.IO;
+using JortPob.Logging;
 
 namespace JortPob.Common
 {

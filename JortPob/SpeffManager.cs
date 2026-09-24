@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using JortPob.Scripts;
 using System;
 using System.Collections.Generic;
@@ -42,6 +43,7 @@ namespace JortPob
 
         public SpeffManager(ESM esm, Paramanager paramanager, ScriptManager scriptManager, MenuTextureManager textureManager, TextManager textManager)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             this.paramanager = paramanager;
             this.textureManager = textureManager;
             this.textManager = textManager;

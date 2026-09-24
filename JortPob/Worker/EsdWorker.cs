@@ -1,5 +1,6 @@
 ﻿using System;
 using JortPob.Common;
+using JortPob.Logging;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -29,6 +30,7 @@ namespace JortPob.Worker
          */
         private void Run()
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             ExitCode = 1;
 
             Predicate<string> allowAnyFilter = delegate { return true; };

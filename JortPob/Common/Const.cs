@@ -1,6 +1,7 @@
 using Mutagen.Bethesda;
 using SoulsFormats;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Numerics;
 
@@ -376,6 +377,10 @@ namespace JortPob.Common
         /// set to "null" or remove from settings.json to build entire map.
         [Setting(DefaultValue = new string[] { })]
         public static string[] DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME_MATCHES { get; private set; }
+
+        // TODO: Set to false for release builds
+        [Setting(DefaultValue = true)]
+        public static bool DEBUG_LOG_PERFORMANCE { get; private set; }
 
         public static bool DEBUG_EXCLUSIVE_INTERIOR_BUILD_NAME(string name)
         {

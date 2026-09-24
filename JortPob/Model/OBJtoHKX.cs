@@ -3,6 +3,7 @@ using HKLib.Reflection.hk2018;
 using HKLib.Serialization.hk2018.Binary;
 using HKLib.Serialization.hk2018.Xml;
 using JortPob.Common;
+using JortPob.Logging;
 using SoulsFormats;
 using System;
 using System.Collections.Concurrent;

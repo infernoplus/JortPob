@@ -1,4 +1,5 @@
 ﻿using JortPob.Common;
+using JortPob.Logging;
 using SoulsFormats;
 using System;
 using System.Collections.Generic;
@@ -92,6 +93,7 @@ namespace JortPob
         /* Write all the ffxbnds for all the map groups */
         public static void Write(Layout layout)
         {
+            using var perf = PerformanceMonitor.TrackPerformance();
             BND4 ffxbnd = new();
             ffxbnd.Compression = Compression.KRAK();
             ffxbnd.Version = "25I10A23";
