@@ -4101,7 +4101,7 @@ end
 
 function ExecJump()
     -- block mid-air double jump; env(IsFalling) is suppressed for walk-on-air.
-    if env(GetEventFlag, AIRBORNE_FLAG) == 1 then
+    if env(GetEventFlag, AIRBORNE_FLAG) == 1 or env(GetEventFlag, SWIMMING_FLAG) == 1 then
         return FALSE
     end
     -- Note: Restored original value during full remake. Repo values was ACTION_ARM_JUMP instead of ACTION_ARM_CHANGE_STYLE
@@ -4467,6 +4467,9 @@ c_RollingAngle = 0
 c_ArtsRollingAngle = 0
 
 function ExecEvasion(backstep_limit, estep, is_usechainrecover)
+    if env(GetEventFlag, SWIMMING_FLAG) == 1 then
+        return FALSE
+    end
     if c_HasActionRequest == FALSE then
         return FALSE
     end
@@ -5603,7 +5606,7 @@ function FallCommonFunction(is_enable_falling_death, is_jump, fall_style)
     local height = env(GetFallHeight) / 100
     local damage_type = env(GetReceivedDamageType)
     local style = c_Style
-    if damage_type == DAMAGE_TYPE_DEATH_FALLING and env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE then
+    if damage_type == DAMAGE_TYPE_DEATH_FALLING and env(GetSpEffectID, SLOW_FALL_SPEFFECT) == FALSE and env(GetEventFlag, SWIMMING_FLAG) ~= 1 then
         if fall_style == FALL_FACEUP then
             ExecEventAllBody("W_FallDeathFaceUp")
         elseif fall_style == FALL_FACEDOWN then
@@ -5613,7 +5616,7 @@ function FallCommonFunction(is_enable_falling_death, is_jump, fall_style)
         end
         return TRUE
     end
-    if is_enable_falling_death ~= TRUE or not (height >= 60) or env(GetStateChangeType, 266) == TRUE or env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE then
+    if is_enable_falling_death ~= TRUE or not (height >= 60) or env(GetStateChangeType, 266) == TRUE or env(GetSpEffectID, SLOW_FALL_SPEFFECT) == TRUE or env(GetEventFlag, SWIMMING_FLAG) == 1 then
     else
         if fall_style == FALL_FACEUP then
             ExecEventAllBody("W_FallDeathFaceUp")
@@ -5627,7 +5630,7 @@ function FallCommonFunction(is_enable_falling_death, is_jump, fall_style)
 
     act(SetCanChangeEquipmentOn)
 
-    if env(IsLanding) == TRUE then
+    if env(IsLanding) == TRUE and env(GetEventFlag, SWIMMING_FLAG) ~= 1 then
         IS_ATTACKED_JUMPMAGIC = FALSE
 
         if env(GetStateChangeType, 266) == TRUE then
@@ -26449,6 +26452,7 @@ SLOW_FALL_SPEFFECT = 6900002
 LEVITATE_SPEFFECT = 6900003
 AIRBORNE_FLAG = "11105900"
 SLOW_FALL_IDLE_FLAG = "11105901"
+SWIMMING_FLAG = "11105902"
 
 ------------------------
 -- Commands

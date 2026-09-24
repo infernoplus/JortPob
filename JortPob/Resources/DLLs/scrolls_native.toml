@@ -69,6 +69,44 @@ pitch_deadzone = 0.25
 # How fast flight starts and stops, blend/sec. Higher = snappier.
 response = 12.0
 
+[swim]
+enabled = true
+# World Y (map chunk space, same as MSB_OFFSET) below which you are swimming.
+water_level = 185.0
+# Flag an area publishes its own water level on, x100. 0 = always use water_level.
+level_flag = 0
+# How deep below the water line before swimming engages, m. The test uses your
+# origin (about the feet), so 0 triggers in ankle-deep water.
+submerge_depth = 1.5
+# Constant downward pull, m/s. Heavier than air, so slower than slow fall.
+sink_speed = 0.5
+# Vertical from look pitch, m/s at full up/down. Looking up cancels the sink.
+pitch_speed = 6.0
+# Look-pitch deadzone, 0-1. Below this, looking around holds depth.
+pitch_deadzone = 0.25
+# Rise speed while A is held, m/s. Must beat sink_speed to climb.
+rise_speed = 3.0
+# Sink speed while B is held, m/s.
+dive_speed = 6.0
+# Clearance held above the bottom, m. Staying off the floor keeps the swim pose
+# and free movement. 0 = rest on the bed and walk.
+hover_height = 0.6
+# Horizontal swim speed, m/s.
+move_speed = 4.0
+# How close to the surface the rise is capped, m, so you settle on the water line
+# instead of launching out. 0 = no cap, you can swim straight out.
+surface_margin = 0.3
+# Damping on the hover spring, as a fraction of vertical speed. Higher = deader,
+# lower = bouncier. This is what stops the stutter on slopes.
+hover_damping = 0.8
+# Rise speed when pushing into terrain but not moving, m/s. Swims you up over
+# slopes and ledges instead of getting stuck against them. 0 = off.
+climb_assist = 2.0
+# How fast swim velocity starts and stops, blend/sec.
+response = 8.0
+# Block jump, roll and attacks in water. Casting stays available.
+block_actions = true
+
 [fall_protection]
 # Apply fall damage/death immunity while jumping or slow falling.
 enabled = true
