@@ -579,8 +579,10 @@ namespace JortPob.Common
 
             if (!timedOut && process.ExitCode == 0)
             {
-                throw new ApplicationException($"Output callback threw:\n{callbackError}");
-                return;
+                if (callbackError.Length > 0)
+                {
+                    throw new ApplicationException($"Output callback threw:\n{callbackError}");
+                }
             }
 
             string err, output;
