@@ -583,6 +583,7 @@ namespace JortPob.Common
                 {
                     throw new ApplicationException($"Output callback threw:\n{callbackError}");
                 }
+                return;
             }
 
             string err, output;
