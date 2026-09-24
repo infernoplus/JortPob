@@ -571,7 +571,8 @@ namespace JortPob.Common
                 }
             }
 
-            try { drain.Wait(5000); }
+            // Drain shouldn't need a timeout at this point
+            try { drain.Wait(); }
             catch (Exception)
             {
                 // ignored
