@@ -97,7 +97,7 @@ namespace JortPob.Model
             /* instance and never free it. The library uses 16-bit ids (fuck u FromSoft), so after 65536 instances it corrupts */
             /* itself and the game crashes in hknpMaterialLibrary::addEntry (strcmp on a garbage entry). Clearing the flag lets */
             /* identical materials dedupe into one shared library entry. */
-            HKLib.hk2018.hknpPhysicsSceneData sceneData = (HKLib.hk2018.hknpPhysicsSceneData)hkx.m_namedVariants[0].m_variant;
+            var sceneData = (HKLib.hk2018.hknpPhysicsSceneData)hkx.m_namedVariants[0].m_variant;
             foreach (HKLib.hk2018.hknpPhysicsSystemData systemData in sceneData.m_systemDatas)
             {
                 foreach (HKLib.hk2018.hknpMaterial material in systemData.m_materials)

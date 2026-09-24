@@ -92,8 +92,10 @@ namespace JortPob.Worker
             int chunkSize = Math.Max(1, Math.Min(MAX_CHUNK, evenSplit));
 
             var chunks = new List<List<(string hkx, List<(string outPath, string settings)> outs)>>();
-            for (int i = 0; i < pending.Count; i += chunkSize)
+            for (int i = 0; i < pending.Count; i += chunkSize) 
+            {
                 chunks.Add(pending.GetRange(i, Math.Min(chunkSize, pending.Count - i)));
+            }
 
             // A worker that dies at init (commit exhaustion, see above) produces nothing for its chunk,
             // so each chunk is re-run for whatever outputs are still missing, up to MAX_ATTEMPTS.

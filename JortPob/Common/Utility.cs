@@ -530,7 +530,7 @@ namespace JortPob.Common
 
             StringBuilder stdout = new();
             StringBuilder stderr = new();
-            Exception callbackError = null;
+            StringBuilder callbackError = new();
 
             async Task Drain(StreamReader reader, StringBuilder sink, bool report)
             {
@@ -541,7 +541,7 @@ namespace JortPob.Common
                     if (!report || onOutputLine == null) { continue; }
                     // A throwing callback must not stop the drain or the child blocks on a full pipe.
                     try { onOutputLine(line); }
-                    catch (Exception ex) { callbackError ??= ex; }
+                    catch (Exception ex) { callbackError.AppendLine(line); }
                 }
             }
 
@@ -571,17 +571,15 @@ namespace JortPob.Common
                 }
             }
 
-            // Join the drains so the captured output is complete: unbounded on a clean exit
-            // (both are at EOF), bounded after a kill. A broken pipe just means less detail.
-            try { if (timedOut) { drain.Wait(5000); } else { drain.Wait(); } }
-            catch (Exception) { }
+            try { drain.Wait(5000); }
+            catch (Exception)
+            {
+                // ignored
+            }
 
             if (!timedOut && process.ExitCode == 0)
             {
-                if (callbackError != null)
-                {
-                    throw new ApplicationException($"Output callback threw: {callbackError.Message}", callbackError);
-                }
+                throw new ApplicationException($"Output callback threw:\n{callbackError}");
                 return;
             }
 
