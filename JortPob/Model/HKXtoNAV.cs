@@ -7,17 +7,23 @@ namespace JortPob.Model
 {
     public partial class ModelConverter
     {
-        public static void HKXtoNAV(string hkxPath, string navPath, string settingsPath)
+        public static void HKXtoNAV(string listFile, int timeoutMillis, Action onProgress)
         {
             string gamePath = Path.Combine(Const.ELDEN_PATH, @"game\eldenring.exe");
-            ProcessStartInfo startInfo = new(Utility.ResourcePath(@"tools\Nav\ERNavmeshGenerator.exe"), $"-g \"{gamePath}\" -i \"{hkxPath}\" -o \"{navPath}\" -s \"{settingsPath}\"" )
+            string navDir = Utility.ResourcePath(@"tools\Nav");
+            ProcessStartInfo startInfo = new(Path.Combine(navDir, "NavGenWorker.exe"),
+                $"--game \"{gamePath}\" --list \"{listFile}\"")
             {
-                WorkingDirectory = Utility.ResourcePath(@"tools\Nav"),
+                WorkingDirectory = navDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardError = true,
             };
-            Utility.ExecuteProcess(startInfo, 60000);
+
+            Utility.ExecuteProcess(startInfo, timeoutMillis, line =>
+            {
+                if (onProgress != null && line.StartsWith("PROG", StringComparison.Ordinal)) { onProgress(); }
+            });
         }
+
     }
 }

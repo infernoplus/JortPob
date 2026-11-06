@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "NavGenWorker/1.0.0": {
+        "dependencies": {
+          "ERNavmeshGenCS": "1.0.0.0"
+        },
+        "runtime": {
+          "NavGenWorker.dll": {}
+        }
+      },
+      "ERNavmeshGenCS/1.0.0.0": {
+        "runtime": {
+          "ERNavmeshGenCS.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "NavGenWorker/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "ERNavmeshGenCS/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

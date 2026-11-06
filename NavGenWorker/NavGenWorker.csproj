@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Platforms>x64</Platforms>
+        <PlatformTarget>x64</PlatformTarget>
+        <AssemblyName>NavGenWorker</AssemblyName>
+        <!-- Small headless worker: generates a chunk of navmeshes in-process via
+             ERNavmeshGenCS, then exits so the OS reclaims Havok's per-generation leak.
+             Spawned one-per-chunk by JortPob's NavWorker.ProcessNAV. -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="ERNavmeshGenCS">
+            <HintPath>..\JortPob\DLL\ERNavmeshGenCS.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
+    <!-- Native DLLs the wrapper P/Invokes into. Copied next to the worker so it runs from
+         its own bin during dev; the deployed copy in Resources\tools\Nav already has them. -->
+    <ItemGroup>
+        <None Include="..\JortPob\Resources\tools\Nav\ERNavmeshGen.dll;..\JortPob\Resources\tools\Nav\Zydis.dll;..\JortPob\Resources\tools\Nav\keystone.dll">
+            <Link>%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- Deploy the built worker (exe + runtime config + ERNavmeshGenCS.dll) into the Nav
+         tools folder JortPob launches it from. Native DLLs already live there. -->
+    <Target Name="DeployToNavTools" AfterTargets="Build">
+        <ItemGroup>
+            <WorkerOutput Include="$(TargetDir)NavGenWorker.exe;$(TargetDir)NavGenWorker.dll;$(TargetDir)NavGenWorker.deps.json;$(TargetDir)NavGenWorker.runtimeconfig.json;$(TargetDir)ERNavmeshGenCS.dll" />
+        </ItemGroup>
+        <Copy SourceFiles="@(WorkerOutput)"
+              DestinationFolder="$(MSBuildProjectDirectory)\..\JortPob\Resources\tools\Nav"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+</Project>
